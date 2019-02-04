@@ -21,7 +21,8 @@
  */
 import { ELEMENT, COMMANDS } from './constants';
 import {
-    isGameOver, getHeadPosition, getElementByXY, getXYByPosition, getPaths, getAt
+    isGameOver, getHeadPosition, getElementByXY, getXYByPosition, getPaths, getAt,
+    isEnemy, inFury
 } from './utils';
 
 var CONSUMABLE_ELEMENTS = [
@@ -36,7 +37,28 @@ const RATINGS = {
     [ELEMENT.FURY_PILL]: 4,
     [ELEMENT.STONE]: 5,
     [ELEMENT.APPLE]: 5,
-    [ELEMENT.GOLD]: 7
+    [ELEMENT.GOLD]: 7,
+
+    [ELEMENT.ENEMY_HEAD_DEAD]: 5,
+    [ELEMENT.ENEMY_HEAD_DOWN]: 5,
+    // [ELEMENT.ENEMY_HEAD_EVIL]: 5,
+    [ELEMENT.ENEMY_HEAD_FLY]: 5,
+    [ELEMENT.ENEMY_HEAD_LEFT]: 5,
+    [ELEMENT.ENEMY_HEAD_RIGHT]: 5,
+    [ELEMENT.ENEMY_HEAD_SLEEP]: 5,
+    [ELEMENT.ENEMY_HEAD_UP]: 5,
+
+    [ELEMENT.ENEMY_BODY_HORIZONTAL]: 5,
+    [ELEMENT.ENEMY_BODY_LEFT_DOWN]: 5,
+    [ELEMENT.ENEMY_BODY_LEFT_UP]: 5,
+    [ELEMENT.ENEMY_BODY_RIGHT_DOWN]: 5,
+    [ELEMENT.ENEMY_BODY_RIGHT_UP]: 5,
+    [ELEMENT.ENEMY_BODY_VERTICAL]: 5,
+
+    [ELEMENT.ENEMY_TAIL_END_DOWN]: 5,
+    [ELEMENT.ENEMY_TAIL_END_LEFT]: 5,
+    [ELEMENT.ENEMY_TAIL_END_RIGHT]: 5,
+    [ELEMENT.ENEMY_TAIL_END_UP]: 5,
 };
 
 export function getNextSnakeMove(board, logger) {
@@ -158,6 +180,9 @@ function getConsumables(board, canEatStones) {
                 point: getXYByPosition(board, i),
                 element
             });
+        }
+        else if (isEnemy(element) && inFury(board)) {
+
         }
     }
 

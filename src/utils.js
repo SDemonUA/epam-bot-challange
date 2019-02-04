@@ -209,11 +209,11 @@ function isWalkable(board, x, y, canEatStones) {
     return false;
 }
 
-function inFury(board) {
+export function inFury(board) {
     return board.indexOf(ELEMENT.HEAD_EVIL) !== -1;
 }
 
-function getSnakeModifiers(board, x, y) {
+export function getSnakeModifiers(board, x, y) {
     let snakeElement = getAt(board, x, y);
 
     if (!snakeElement) {
@@ -267,7 +267,7 @@ function getSnakeModifiers(board, x, y) {
     };
 }
 
-function isEnemy(element) {
+export function isEnemy(element) {
     return [
         ELEMENT.ENEMY_HEAD_DEAD,
         ELEMENT.ENEMY_HEAD_DOWN,
