@@ -30,7 +30,7 @@ var CONSUMABLE_ELEMENTS = [
 ];
 
 const MAX_SEARCH = 3;
-const STONE_EATER_MIN_SIZE = 8;
+const STONE_EATER_MIN_SIZE = 5;
 const RATINGS = {
     [ELEMENT.NONE]: 0,
     [ELEMENT.FLYING_PILL]: 2,
@@ -182,7 +182,10 @@ function getConsumables(board, canEatStones) {
             });
         }
         else if (isEnemy(element) && inFury(board)) {
-
+            items.push({
+                point: getXYByPosition(board, i),
+                element
+            });
         }
     }
 
