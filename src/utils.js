@@ -127,9 +127,9 @@ var WALKABLE = [
 
 const MAX_PATHS = 2;
 
-export function getPaths(board, from_x, from_y, to_x, to_y) {
+export function getPaths(board, from_x, from_y, to_x, to_y, canEatStones) {
     var dirs = _getSurroundCells(from_x, from_y);
-    var paths = [];
+    var paths = getIdealPaths(board, from_x, from_y, to_x, to_y, canEatStones);
 
     dirs.forEach(dir => {
         var element = getAt(board, dir[0], dir[1]);
@@ -168,7 +168,7 @@ export function getPaths(board, from_x, from_y, to_x, to_y) {
 
                 var element = getAt(board, dirs[j][0], dirs[j][1]);
 
-                if (WALKABLE.indexOf(element) !== -1) {
+                if (isWalkable(board, dirs[j][0], dirs[j][1], canEatStones)) {
                     var next_cell = [dirs[j][0], dirs[j][1]];
                     if (!moved) {
                         path.push(next_cell);
@@ -177,7 +177,8 @@ export function getPaths(board, from_x, from_y, to_x, to_y) {
                     else {
                         var new_path = path.slice();
                         new_path[new_path.length - 1] = next_cell;
-                        paths.push(new_path);
+                        paths.splice(i+1, 0, [new_path]);
+                        // paths.push(new_path);
                     }
                 }
             }
@@ -196,6 +197,158 @@ export function getPaths(board, from_x, from_y, to_x, to_y) {
     }
 
     paths.sort((p1, p2) => p1.length - p2.length); // Sort paths by length
+
+    return paths;
+}
+
+function isWalkable(board, x, y, canEatStones) {
+    const element = getAt(board, x, y);
+    if (WALKABLE.indexOf(element) !== -1) return true;
+    else if (canEatStones && element === ELEMENT.STONE) return true;
+    else if (inFury(board) && isEnemy(element) && !getSnakeModifiers(board, x, y).fury) return true;
+    return false;
+}
+
+function inFury(board) {
+    return board.indexOf(ELEMENT.HEAD_EVIL) !== -1;
+}
+
+function getSnakeModifiers(board, x, y) {
+    let snakeElement = getAt(board, x, y);
+
+    if (!snakeElement) {
+        return {
+            fury: board.indexOf(ELEMENT.HEAD_EVIL),
+            fly: board.indexOf(ELEMENT.HEAD_FLY),
+            dead: board.indexOf(ELEMENT.HEAD_DEAD)
+        };
+    }
+
+    const heads = [
+        ELEMENT.ENEMY_HEAD_DEAD,
+        ELEMENT.ENEMY_HEAD_DOWN,
+        ELEMENT.ENEMY_HEAD_EVIL,
+        ELEMENT.ENEMY_HEAD_FLY,
+        ELEMENT.ENEMY_HEAD_LEFT,
+        ELEMENT.ENEMY_HEAD_RIGHT,
+        ELEMENT.ENEMY_HEAD_SLEEP,
+        ELEMENT.ENEMY_HEAD_UP,
+    ];
+
+    const body = [{ x, y, element: snakeElement }];
+    for (let i = 0; i < body.length; i++) {
+        const item = body[i];
+
+        if (heads.indexOf(item.element) !== -1) {
+            return {
+                fury: item.element === ELEMENT.ENEMY_HEAD_EVIL,
+                fly: item.element === ELEMENT.ENEMY_HEAD_FLY,
+                dead: item.element === ELEMENT.ENEMY_HEAD_DEAD
+            };
+        }
+
+        const surroundings = _getSurroundCells(item.x, item.y);
+        surroundings
+            .filter(coord => isEnemy(getAt(board, coord[0], coord[1])))
+            .filter(coord => !body.some(it => it.x == coord[0] && it.y == coord[1]))
+            .forEach(coord => {
+                body.push({
+                    x: coord[0],
+                    y: coord[1],
+                    element: getAt(board, coord[0], coord[1])
+                })
+            });
+    }
+
+    return {
+        fury: false,
+        fly: false,
+        dead: false
+    };
+}
+
+function isEnemy(element) {
+    return [
+        ELEMENT.ENEMY_HEAD_DEAD,
+        ELEMENT.ENEMY_HEAD_DOWN,
+        ELEMENT.ENEMY_HEAD_EVIL,
+        ELEMENT.ENEMY_HEAD_FLY,
+        ELEMENT.ENEMY_HEAD_LEFT,
+        ELEMENT.ENEMY_HEAD_RIGHT,
+        ELEMENT.ENEMY_HEAD_SLEEP,
+        ELEMENT.ENEMY_HEAD_UP,
+
+        ELEMENT.ENEMY_BODY_HORIZONTAL,
+        ELEMENT.ENEMY_BODY_LEFT_DOWN,
+        ELEMENT.ENEMY_BODY_LEFT_UP,
+        ELEMENT.ENEMY_BODY_RIGHT_DOWN,
+        ELEMENT.ENEMY_BODY_RIGHT_UP,
+        ELEMENT.ENEMY_BODY_VERTICAL,
+
+        ELEMENT.ENEMY_TAIL_END_DOWN,
+        ELEMENT.ENEMY_TAIL_END_LEFT,
+        ELEMENT.ENEMY_TAIL_END_RIGHT,
+        ELEMENT.ENEMY_TAIL_END_UP,
+        ELEMENT.ENEMY_TAIL_INACTIVE
+    ].indexOf(element) !== -1;
+}
+
+function getIdealPaths(board, from_x, from_y, to_x, to_y, canEatStones) {
+    const paths = [];
+
+    HV: {
+        const hv = [];
+        for (let x = from_x; x != to_x;){
+            if (x > to_x) x--;
+            else x++;
+
+            if (!isWalkable(board, x, from_y, canEatStones)) {
+                break HV;
+            }
+
+            hv.push([x, from_y]);
+        }
+
+        for (let y = from_y; y != to_y;) {
+            if (y > to_y) y--;
+            else y++;
+
+            if (!isWalkable(board, to_x, y, canEatStones)) {
+                break HV;
+            }
+
+            hv.push([to_x, y]);
+        }
+
+        paths.push(hv);
+    }
+
+    VH: {
+        const vh = [];
+        for (let y = from_y; y != to_y;) {
+            if (y > to_y) y--;
+            else y++;
+
+            if (!isWalkable(board, from_x, y)) {
+                break VH;
+            }
+
+            vh.push([from_x, y]);
+        }
+
+        for (let x = from_x; x != to_x;) {
+            if (x > to_x) x--;
+            else x++;
+
+            if (!isWalkable(board, x, to_y)) {
+                break VH;
+            }
+
+            vh.push([x, to_y]);
+        }
+
+        paths.push(vh);
+    }
 
     return paths;
 }

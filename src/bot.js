@@ -29,6 +29,15 @@ var CONSUMABLE_ELEMENTS = [
 ];
 
 const MAX_SEARCH = 3;
+const STONE_EATER_MIN_SIZE = 8;
+const RATINGS = {
+    [ELEMENT.NONE]: 0,
+    [ELEMENT.FLYING_PILL]: 2,
+    [ELEMENT.FURY_PILL]: 4,
+    [ELEMENT.STONE]: 5,
+    [ELEMENT.APPLE]: 5,
+    [ELEMENT.GOLD]: 7
+};
 
 export function getNextSnakeMove(board, logger) {
     if (isGameOver(board)) {
@@ -40,7 +49,10 @@ export function getNextSnakeMove(board, logger) {
     }
     logger('Head:' + JSON.stringify(headPosition));
 
-    const consumables = getConsumables(board);
+    const snakeSize = getSelfSnakeSize(board);
+    const canEatStones = snakeSize >= STONE_EATER_MIN_SIZE;
+    const consumables = getConsumables(board, canEatStones);
+
     // Sort by distance and rate - higher rate will give priority over distance
     consumables.sort((c1, c2) => {
         const distance_rate1 = Math.abs(c1.point.x - headPosition.x) + Math.abs(c1.point.y - headPosition.y);// - rateElement(c1.element);
@@ -53,7 +65,7 @@ export function getNextSnakeMove(board, logger) {
 
     for (let i = 0; i < consumables.length && i < MAX_SEARCH; i++) {
         const item = consumables[i];
-        const paths = getPaths(board, headPosition.x, headPosition.y, item.point.x, item.point.y);
+        const paths = getPaths(board, headPosition.x, headPosition.y, item.point.x, item.point.y, canEatStones);
         const rating = rateElement(item.element);
 
         // console.log('Distance:', Math.abs(item.point.x - headPosition.x) + Math.abs(item.point.y - headPosition.y), item.element);
@@ -131,11 +143,17 @@ function getCommandByPoints(from, to) {
     return '';
 }
 
-function getConsumables(board) {
+function getConsumables(board, canEatStones) {
     const items = [];
     for (let i = 0; i < board.length; i++) {
         const element = board[i];
         if (CONSUMABLE_ELEMENTS.indexOf(element) !== -1) {
+            items.push({
+                point: getXYByPosition(board, i),
+                element
+            });
+        }
+        else if (element === ELEMENT.STONE && canEatStones) {
             items.push({
                 point: getXYByPosition(board, i),
                 element
@@ -155,14 +173,6 @@ function getSorround(board, position) {
         getElementByXY(board, {x: p.x, y: p.y + 1 }) // DOWN
     ];
 }
-
-const RATINGS = {
-    [ELEMENT.NONE]: 0,
-    [ELEMENT.FURY_PILL]: 1,
-    [ELEMENT.FLYING_PILL]: 2,
-    [ELEMENT.APPLE]: 5,
-    [ELEMENT.GOLD]: 7
-};
 
 function rateElement(element) {
     let rating = RATINGS[element];
