@@ -125,6 +125,8 @@ var WALKABLE = [
     ELEMENT.TAIL_END_RIGHT, ELEMENT.TAIL_INACTIVE
 ];
 
+const MAX_PATHS = 2;
+
 export function getPaths(board, from_x, from_y, to_x, to_y) {
     var dirs = _getSurroundCells(from_x, from_y);
     var paths = [];
@@ -187,8 +189,8 @@ export function getPaths(board, from_x, from_y, to_x, to_y) {
 
         }
 
-        if (i >= 3) { // We have found 3 succesfull paths
-            paths = paths.slice(0, 3);
+        if (i >= MAX_PATHS) { // We have found MAX succesfull paths
+            paths = paths.slice(0, MAX_PATHS);
             break;
         }
     }

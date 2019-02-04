@@ -21,14 +21,14 @@
  */
 import { ELEMENT, COMMANDS } from './constants';
 import {
-    isGameOver, getHeadPosition, getElementByXY, getXYByPosition, getPaths
+    isGameOver, getHeadPosition, getElementByXY, getXYByPosition, getPaths, getAt
 } from './utils';
 
 var CONSUMABLE_ELEMENTS = [
-    ELEMENT.APPLE, ELEMENT.GOLD, ELEMENT.FLYING_PILL, ELEMENT.FURY_PILL, ELEMENT.STONE
+    ELEMENT.APPLE, ELEMENT.GOLD, ELEMENT.FLYING_PILL, ELEMENT.FURY_PILL//, ELEMENT.STONE
 ];
 
-const MAX_SEARCH = 5;
+const MAX_SEARCH = 3;
 
 export function getNextSnakeMove(board, logger) {
     if (isGameOver(board)) {
@@ -43,10 +43,10 @@ export function getNextSnakeMove(board, logger) {
     const consumables = getConsumables(board);
     // Sort by distance and rate - higher rate will give priority over distance
     consumables.sort((c1, c2) => {
-        const distance_rate1 = Math.abs(c1.point.x - headPosition.x) + Math.abs(c1.point.y - headPosition.y) - rateElement(c1.element);
-        const distance_rate2 = Math.abs(c2.point.x - headPosition.x) + Math.abs(c2.point.y - headPosition.y) - rateElement(c2.element);
+        const distance_rate1 = Math.abs(c1.point.x - headPosition.x) + Math.abs(c1.point.y - headPosition.y);// - rateElement(c1.element);
+        const distance_rate2 = Math.abs(c2.point.x - headPosition.x) + Math.abs(c2.point.y - headPosition.y);// - rateElement(c2.element);
 
-        return distance_rate1 - distance_rate2;
+        return distance_rate1 - distance_rate2 || rateElement(c2.element) - rateElement(c1.element);
     });
 
     let current_path;
@@ -56,7 +56,12 @@ export function getNextSnakeMove(board, logger) {
         const paths = getPaths(board, headPosition.x, headPosition.y, item.point.x, item.point.y);
         const rating = rateElement(item.element);
 
-        if (!paths.length) continue;
+        // console.log('Distance:', Math.abs(item.point.x - headPosition.x) + Math.abs(item.point.y - headPosition.y), item.element);
+
+        if (!paths.length) {
+            logger('No path to ' + JSON.stringify(item));
+            continue;
+        }
 
         if (
             !current_path ||
@@ -64,7 +69,9 @@ export function getNextSnakeMove(board, logger) {
         ) {
             current_path = {
                 path: paths[0],
-                rating: rating
+                rating: rating,
+                element: item.element,
+                point: item.point
             }
         }
     }
@@ -74,9 +81,19 @@ export function getNextSnakeMove(board, logger) {
             x: current_path.path[0][0],
             y: current_path.path[0][1]
         };
+
         const command = getCommandByPoints(headPosition, point);
+
+        logger('Winned path ' + current_path.element + ' ' + JSON.stringify(current_path.point) + ' ' + JSON.stringify(current_path.path));
+
         if (command) {
             return command;
+        }
+        else if (current_path.path.length > 1){
+            return getCommandByPoints(headPosition, {
+                x: current_path.path[1][0],
+                y: current_path.path[1][1]
+            })
         }
     }
 
@@ -96,10 +113,10 @@ export function getNextSnakeMove(board, logger) {
 function getCommandByPoints(from, to) {
     if (from.x == to.x) {
         if (from.y > to.y) {
-            return COMMANDS.DOWN;
+            return COMMANDS.UP;
         }
         else {
-            return COMMANDS.UP;
+            return COMMANDS.DOWN;
         }
     }
     if (from.y == to.y) {
@@ -120,7 +137,7 @@ function getConsumables(board) {
         const element = board[i];
         if (CONSUMABLE_ELEMENTS.indexOf(element) !== -1) {
             items.push({
-                point: getXYByPosition(i),
+                point: getXYByPosition(board, i),
                 element
             });
         }
@@ -144,7 +161,7 @@ const RATINGS = {
     [ELEMENT.FURY_PILL]: 1,
     [ELEMENT.FLYING_PILL]: 2,
     [ELEMENT.APPLE]: 5,
-    [ELEMENT.GOLD]: 10
+    [ELEMENT.GOLD]: 7
 };
 
 function rateElement(element) {
