@@ -21,12 +21,14 @@
  */
 import { ELEMENT, COMMANDS } from './constants';
 import {
-  isGameOver, getHeadPosition, getElementByXY
+    isGameOver, getHeadPosition, getElementByXY, getXYByPosition, getPaths
 } from './utils';
 
 var CONSUMABLE_ELEMENTS = [
     ELEMENT.APPLE, ELEMENT.GOLD, ELEMENT.FLYING_PILL, ELEMENT.FURY_PILL, ELEMENT.STONE
 ];
+
+const MAX_SEARCH = 5;
 
 export function getNextSnakeMove(board, logger) {
     if (isGameOver(board)) {
@@ -37,6 +39,48 @@ export function getNextSnakeMove(board, logger) {
         return '';
     }
     logger('Head:' + JSON.stringify(headPosition));
+
+    const consumables = getConsumables(board);
+    // Sort by distance and rate - higher rate will give priority over distance
+    consumables.sort((c1, c2) => {
+        const distance_rate1 = Math.abs(c1.point.x - headPosition.x) + Math.abs(c1.point.y - headPosition.y) - rateElement(c1.element);
+        const distance_rate2 = Math.abs(c2.point.x - headPosition.x) + Math.abs(c2.point.y - headPosition.y) - rateElement(c2.element);
+
+        return distance_rate1 - distance_rate2;
+    });
+
+    let current_path;
+
+    for (let i = 0; i < consumables.length && i < MAX_SEARCH; i++) {
+        const item = consumables[i];
+        const paths = getPaths(board, headPosition.x, headPosition.y, item.point.x, item.point.y);
+        const rating = rateElement(item.element);
+
+        if (!paths.length) continue;
+
+        if (
+            !current_path ||
+            paths[0].length - rating < current_path.path.length - current_path.rating
+        ) {
+            current_path = {
+                path: paths[0],
+                rating: rating
+            }
+        }
+    }
+
+    if (current_path) {
+        const point = {
+            x: current_path.path[0][0],
+            y: current_path.path[0][1]
+        };
+        const command = getCommandByPoints(headPosition, point);
+        if (command) {
+            return command;
+        }
+    }
+
+    logger('Warning: no desicition for move was made.\n'+ JSON.stringify(current_path)+'\n'+ JSON.stringify(consumables));
 
     const sorround = getSorround(board, headPosition); // (LEFT, UP, RIGHT, DOWN)
     logger('Sorround: ' + JSON.stringify(sorround));
@@ -49,6 +93,42 @@ export function getNextSnakeMove(board, logger) {
     return command;
 }
 
+function getCommandByPoints(from, to) {
+    if (from.x == to.x) {
+        if (from.y > to.y) {
+            return COMMANDS.DOWN;
+        }
+        else {
+            return COMMANDS.UP;
+        }
+    }
+    if (from.y == to.y) {
+        if (from.x > to.x) {
+            return COMMANDS.LEFT;
+        }
+        else {
+            return COMMANDS.RIGHT;
+        }
+    }
+
+    return '';
+}
+
+function getConsumables(board) {
+    const items = [];
+    for (let i = 0; i < board.length; i++) {
+        const element = board[i];
+        if (CONSUMABLE_ELEMENTS.indexOf(element) !== -1) {
+            items.push({
+                point: getXYByPosition(i),
+                element
+            });
+        }
+    }
+
+    return items;
+}
+
 function getSorround(board, position) {
     const p = position;
     return [
@@ -59,18 +139,22 @@ function getSorround(board, position) {
     ];
 }
 
+const RATINGS = {
+    [ELEMENT.NONE]: 0,
+    [ELEMENT.FURY_PILL]: 1,
+    [ELEMENT.FLYING_PILL]: 2,
+    [ELEMENT.APPLE]: 5,
+    [ELEMENT.GOLD]: 10
+};
+
 function rateElement(element) {
-    if (element === ELEMENT.NONE) {
-        return 0;
-    }
-    if (
-        element === ELEMENT.APPLE ||
-        element === ELEMENT.GOLD
-    ) {
-        return 1;
+    let rating = RATINGS[element];
+
+    if (typeof rating == undefined) {
+        return -1;
     }
 
-    return -1;
+    return rating;
 }
 
 
