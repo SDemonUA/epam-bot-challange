@@ -149,6 +149,12 @@ function canEatStone(board) {
     return inFury(board) || getSelfSnakeSize(board) >= STONE_EATER_MIN_SIZE;
 }
 
+function isDeadEnd(board, point) {
+    return getSorround(board, point).filter(element => {
+        return element === ELEMENT.STONE || element == ELEMENT.START_FLOOR;
+    }).length >= 2;
+}
+
 function getCommandByPoints(from, to) {
     if (from.x == to.x) {
         if (from.y > to.y) {
@@ -174,21 +180,26 @@ function getConsumables(board, canEatStones) {
     const items = [];
     for (let i = 0; i < board.length; i++) {
         const element = board[i];
+        const point = getXYByPosition(board, i);
+        if (isDeadEnd(board, point)) {
+            continue;
+        }
+
         if (CONSUMABLE_ELEMENTS.indexOf(element) !== -1) {
             items.push({
-                point: getXYByPosition(board, i),
+                point,
                 element
             });
         }
         else if (element === ELEMENT.STONE && canEatStones) {
             items.push({
-                point: getXYByPosition(board, i),
+                point,
                 element
             });
         }
         else if (isEnemy(element) && inFury(board)) {
             items.push({
-                point: getXYByPosition(board, i),
+                point,
                 element
             });
         }
