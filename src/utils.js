@@ -205,7 +205,7 @@ function isWalkable(board, x, y, canEatStones) {
     const element = getAt(board, x, y);
     if (WALKABLE.indexOf(element) !== -1) return true;
     else if (canEatStones && element === ELEMENT.STONE) return true;
-    else if (inFury(board) && isEnemy(element) && !getSnakeModifiers(board, x, y).fury) return true;
+    else if (inFury(board) && isEnemy(element) && element != ELEMENT.ENEMY_HEAD_EVIL) return true;// !getSnakeModifiers(board, x, y).fury) return true;
     return false;
 }
 
@@ -361,3 +361,7 @@ function _getSurroundCells(x, y) {
         [x - 1, y]
     ];
 }
+
+// export function findSnakes(board) {
+
+// }
