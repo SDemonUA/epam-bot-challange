@@ -33,7 +33,7 @@ const MAX_SEARCH = 3;
 const STONE_EATER_MIN_SIZE = 5;
 const RATINGS = {
     [ELEMENT.NONE]: 0,
-    [ELEMENT.FLYING_PILL]: 2,
+    [ELEMENT.FLYING_PILL]: 1,
     [ELEMENT.FURY_PILL]: 10,
     [ELEMENT.STONE]: 5,
     [ELEMENT.APPLE]: 5,
@@ -71,9 +71,9 @@ export function getNextSnakeMove(board, logger) {
     }
     logger('Head:' + JSON.stringify(headPosition));
 
-    const snakeSize = getSelfSnakeSize(board);
-    const canEatStones = snakeSize >= STONE_EATER_MIN_SIZE;
-    const consumables = getConsumables(board, canEatStones);
+    // const snakeSize = getSelfSnakeSize(board);
+    const stonesEatable = canEatStone(board);
+    const consumables = getConsumables(board, stonesEatable);
 
     // Sort by distance and rate - higher rate will give priority over distance
     consumables.sort((c1, c2) => {
@@ -87,7 +87,7 @@ export function getNextSnakeMove(board, logger) {
 
     for (let i = 0; i < consumables.length && i < MAX_SEARCH; i++) {
         const item = consumables[i];
-        const paths = getPaths(board, headPosition.x, headPosition.y, item.point.x, item.point.y, canEatStones);
+        const paths = getPaths(board, headPosition.x, headPosition.y, item.point.x, item.point.y, stonesEatable);
         const rating = rateElement(item.element);
 
         // console.log('Distance:', Math.abs(item.point.x - headPosition.x) + Math.abs(item.point.y - headPosition.y), item.element);
@@ -142,6 +142,11 @@ export function getNextSnakeMove(board, logger) {
     const command = getCommandByRaitings(raitings);
 
     return command;
+}
+
+
+function canEatStone(board) {
+    return inFury(board) || getSelfSnakeSize(board) >= STONE_EATER_MIN_SIZE;
 }
 
 function getCommandByPoints(from, to) {
