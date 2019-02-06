@@ -22,7 +22,7 @@
 import { ELEMENT, COMMANDS } from './constants';
 import {
     isGameOver, getHeadPosition, getElementByXY, getXYByPosition, getPaths, getAt,
-    isEnemy, inFury, findSnakes, inFly, isWalkable
+    isEnemy, inFury, findSnakes, inFly
 } from './utils';
 
 var CONSUMABLE_ELEMENTS = [
@@ -97,15 +97,29 @@ function getDistance(point1, point2) {
     return Math.abs(point1.x - point2.x) + Math.abs(point1.y - point2.y);
 }
 
+let hasStone = false;
+let furyTicks = 0;
+
+function resetState() {
+    hasStone = false;
+    furyTicks = 0;
+}
+
 export function getNextSnakeMove(board, logger) {
     if (isGameOver(board)) {
+        resetState();
         return '';
     }
     const headPosition = getHeadPosition(board);
     if (!headPosition) {
+        resetState();
         return '';
     }
     logger('Head:' + JSON.stringify(headPosition));
+
+    if (furyTicks) {
+        furyTicks--;
+    }
 
     const snakeSize = getSelfSnakeSize(board);
     const stonesEatable = canEatStone(board);
@@ -116,17 +130,18 @@ export function getNextSnakeMove(board, logger) {
     enemySnakes.filter(snake => {
         if (snake.fury && !inFury(board)) return false;
         if (snake.fly && inFly(board)) return false;
-        if (getDistance(snake.head, headPosition) > 4) return false;
-        if (snakeSize - snake.points.length < 2) return false;
+        if (getDistance(snake.head, headPosition) > 8) return false;
+        if (snakeSize - snake.points.length < 2 || (!snake.fury && inFury(board))) return false;
+        logger('Eatable snake (' + getDistance(snake.head, headPosition) + ') ' + JSON.stringify(snake.head));
         return true;
     }).forEach(snake => consumables.push({ point:snake.head, element:snake.headElement }));
 
     // Sort by distance and rate - higher rate will give priority over distance
     consumables.sort((c1, c2) => {
-        const distance_rate1 = Math.abs(c1.point.x - headPosition.x) + Math.abs(c1.point.y - headPosition.y);// - rateElement(c1.element);
-        const distance_rate2 = Math.abs(c2.point.x - headPosition.x) + Math.abs(c2.point.y - headPosition.y);// - rateElement(c2.element);
+        const distance_rate1 = Math.abs(c1.point.x - headPosition.x) + Math.abs(c1.point.y - headPosition.y) - rateElement(c1.element);
+        const distance_rate2 = Math.abs(c2.point.x - headPosition.x) + Math.abs(c2.point.y - headPosition.y) - rateElement(c2.element);
 
-        return distance_rate1 - distance_rate2 || rateElement(c2.element) - rateElement(c1.element);
+        return distance_rate1 - distance_rate2;// || rateElement(c2.element) - rateElement(c1.element);
     });
 
     let current_path;
@@ -156,40 +171,55 @@ export function getNextSnakeMove(board, logger) {
         }
     }
 
+    let command = '';
     if (current_path) {
         const point = {
             x: current_path.path[0][0],
             y: current_path.path[0][1]
         };
 
-        const command = correctBackFlip(board, getCommandByPoints(headPosition, point));
-
+        command = getCommandByPoints(headPosition, point);
         logger('Winned path ' + current_path.element + ' ' + JSON.stringify(current_path.point) + ' ' + JSON.stringify(current_path.path));
 
-        if (command) {
-            return command;
-        }
-        else if (current_path.path.length > 1){
-            return getCommandByPoints(headPosition, {
-                x: current_path.path[1][0],
-                y: current_path.path[1][1]
-            })
-        }
+        // if (command) {
+        //     return command;
+        // }
+        // else if (current_path.path.length > 1){
+        //     return getCommandByPoints(headPosition, {
+        //         x: current_path.path[1][0],
+        //         y: current_path.path[1][1]
+        //     })
+        // }
     }
 
-    logger('Warning: no desicition for move was made.\n'+ JSON.stringify(current_path)+'\n'+ JSON.stringify(consumables));
+    if (!command) {
+        logger('Warning: no desicition for move was made.\n'+ JSON.stringify(current_path)+'\n'+ JSON.stringify(consumables));
 
-    const sorround = getSorround(board, headPosition); // (LEFT, UP, RIGHT, DOWN)
-    logger('Sorround: ' + JSON.stringify(sorround));
+        const sorround = getSorround(board, headPosition); // (LEFT, UP, RIGHT, DOWN)
+        logger('Sorround: ' + JSON.stringify(sorround));
 
+        const safeElements = getSafeElements(board);
+        const raitings = sorround.map(element => safeElements.indexOf(element) != -1 ? element : ELEMENT.WALL).map(rateElement);
+        logger('Raitings:' + JSON.stringify(raitings));
 
-    const safeElements = getSafeElements(board);
-    const raitings = sorround.map(element => safeElements.indexOf(element) != -1 ? element : ELEMENT.WALL).map(rateElement);
-    logger('Raitings:' + JSON.stringify(raitings));
+        command = getCommandByRaitings(raitings);
+    }
 
-    const command = correctBackFlip(board, getCommandByRaitings(raitings));
+    command = correctBackFlip(board, command);
 
+    const nextPoint = getPointFromCommand(command, headPosition);
+    switch (getElementByXY(board, nextPoint)) {
+        case ELEMENT.STONE:
+            hasStone = true;
+            break;
+        case ELEMENT.FURY_PILL:
+            furyTicks = 10;
+            break;
+        default:
+            break;
+    }
 
+    logger(`Has stone: ${hasStone}, fury ticks: ${furyTicks}`);
 
     return command;
 }
@@ -234,9 +264,9 @@ function getPointFromCommand(command, headPosition) {
             return { x: headPosition.x, y: headPosition.y - 1 };
         case COMMANDS.LEFT:
             return { x: headPosition.x - 1, y: headPosition.y };
+        default:
         case COMMANDS.RIGHT:
             return { x: headPosition.x + 1, y: headPosition.y };
-
     }
 }
 
