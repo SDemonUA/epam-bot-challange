@@ -29,7 +29,7 @@ var CONSUMABLE_ELEMENTS = [
     ELEMENT.APPLE, ELEMENT.GOLD, ELEMENT.FLYING_PILL, ELEMENT.FURY_PILL//, ELEMENT.STONE
 ];
 
-const MAX_SEARCH = 3;
+const MAX_SEARCH = 5;
 const STONE_EATER_MIN_SIZE = 5;
 const RATINGS = {
     [ELEMENT.NONE]: 0,
@@ -201,7 +201,7 @@ function canEatStone(board) {
 
 function isDeadEnd(board, point) {
     return getSorround(board, point).filter(element => {
-        return element === ELEMENT.STONE || element === ELEMENT.START_FLOOR;
+        return element === ELEMENT.WALL || element === ELEMENT.START_FLOOR;
     }).length >= 2;
 }
 
