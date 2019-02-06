@@ -128,13 +128,23 @@ export function getNextSnakeMove(board, logger) {
     // Add vulnarable snakes as targets
     const enemySnakes = findSnakes(board);
     enemySnakes.filter(snake => {
-        if (snake.fury && !inFury(board)) return false;
-        if (snake.fly && inFly(board)) return false;
+        if (snake.fury != !inFury(board) && snake.fury) return false;
+        if (snake.fly != inFly(board)) return false;
+        if (snakeSize - snake.points.length < 2 && !inFury(board)) return false;
+
+        logger('Eatable snake on distance: (' + getDistance(snake.head, headPosition) + ') , head position: ' + JSON.stringify(snake.head));
         if (getDistance(snake.head, headPosition) > 8) return false;
-        if (snakeSize - snake.points.length < 2 || (!snake.fury && inFury(board))) return false;
-        logger('Eatable snake (' + getDistance(snake.head, headPosition) + ') ' + JSON.stringify(snake.head));
+
         return true;
-    }).forEach(snake => consumables.push({ point:snake.head, element:snake.headElement }));
+    }).forEach(snake => {
+        if (!inFury(board)) {
+            consumables.push({ point: snake.head, element: snake.headElement })
+        }
+        else {
+            const canEatWhole = !snake.fury || snakeSize - snake.points.length >= 2;
+            (canEatWhole ? snake.points : snake.points.slice(1)).map( point => consumables.push({ point, element:getElementByXY(board, point) }))
+        }
+    });
 
     // Sort by distance and rate - higher rate will give priority over distance
     consumables.sort((c1, c2) => {
@@ -199,7 +209,16 @@ export function getNextSnakeMove(board, logger) {
         logger('Sorround: ' + JSON.stringify(sorround));
 
         const safeElements = getSafeElements(board);
-        const raitings = sorround.map(element => safeElements.indexOf(element) != -1 ? element : ELEMENT.WALL).map(rateElement);
+        const raitings = sorround
+            .map((el, i) => {
+                var indexToCommand = ['LEFT', 'UP', 'RIGHT', 'DOWN'];
+                if (isDeadEnd(board, getPointFromCommand(board, indexToCommand[i]))) {
+                    return null;
+                }
+                return el;
+            })
+            .map(element => safeElements.indexOf(element) != -1 ? element : ELEMENT.WALL)
+            .map(rateElement);
         logger('Raitings:' + JSON.stringify(raitings));
 
         command = getCommandByRaitings(raitings);
@@ -311,12 +330,12 @@ function getConsumables(board, canEatStones) {
                 element
             });
         }
-        else if (isEnemy(element) && inFury(board)) {
-            items.push({
-                point,
-                element
-            });
-        }
+        // else if (isEnemy(element) && inFury(board)) {
+        //     items.push({
+        //         point,
+        //         element
+        //     });
+        // }
     }
 
     return items;
