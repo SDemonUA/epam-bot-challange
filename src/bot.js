@@ -22,7 +22,7 @@
 import { ELEMENT, COMMANDS } from './constants';
 import {
     isGameOver, getHeadPosition, getElementByXY, getXYByPosition, getPaths, getAt,
-    isEnemy, inFury
+    isEnemy, inFury, findSnakes, inFly, isWalkable
 } from './utils';
 
 var CONSUMABLE_ELEMENTS = [
@@ -61,6 +61,42 @@ const RATINGS = {
     // [ELEMENT.ENEMY_TAIL_END_UP]: 10,
 };
 
+function getSafeElements(board) {
+    const safeElements = [
+        ELEMENT.NONE, ELEMENT.FLYING_PILL, ELEMENT.FURY_PILL, ELEMENT.APPLE, ELEMENT.GOLD,
+        ELEMENT.TAIL_END_DOWN, ELEMENT.TAIL_END_LEFT, ELEMENT.TAIL_END_RIGHT, ELEMENT.TAIL_END_UP,
+        ELEMENT.TAIL_INACTIVE, ELEMENT.ENEMY_TAIL_END_DOWN, ELEMENT.ENEMY_TAIL_END_LEFT, ELEMENT.ENEMY_TAIL_END_RIGHT,
+        ELEMENT.ENEMY_TAIL_END_UP, ELEMENT.ENEMY_TAIL_INACTIVE
+    ];
+
+    if (inFury(board) || inFly(board)){
+        safeElements.push(
+            ELEMENT.ENEMY_HEAD_DEAD,
+            ELEMENT.ENEMY_HEAD_DOWN,
+            ELEMENT.ENEMY_HEAD_FLY,
+            ELEMENT.ENEMY_HEAD_LEFT,
+            ELEMENT.ENEMY_HEAD_RIGHT,
+            ELEMENT.ENEMY_HEAD_SLEEP,
+            ELEMENT.ENEMY_HEAD_UP,
+
+            ELEMENT.ENEMY_BODY_HORIZONTAL,
+            ELEMENT.ENEMY_BODY_LEFT_DOWN,
+            ELEMENT.ENEMY_BODY_LEFT_UP,
+            ELEMENT.ENEMY_BODY_RIGHT_DOWN,
+            ELEMENT.ENEMY_BODY_RIGHT_UP,
+            ELEMENT.ENEMY_BODY_VERTICAL
+        );
+    }
+
+    if (getSelfSnakeSize(board) >= 5) safeElements.push(ELEMENT.STONE);
+
+    return safeElements;
+}
+
+function getDistance(point1, point2) {
+    return Math.abs(point1.x - point2.x) + Math.abs(point1.y - point2.y);
+}
+
 export function getNextSnakeMove(board, logger) {
     if (isGameOver(board)) {
         return '';
@@ -71,9 +107,19 @@ export function getNextSnakeMove(board, logger) {
     }
     logger('Head:' + JSON.stringify(headPosition));
 
-    // const snakeSize = getSelfSnakeSize(board);
+    const snakeSize = getSelfSnakeSize(board);
     const stonesEatable = canEatStone(board);
     const consumables = getConsumables(board, stonesEatable);
+
+    // Add vulnarable snakes as targets
+    const enemySnakes = findSnakes(board);
+    enemySnakes.filter(snake => {
+        if (snake.fury && !inFury(board)) return false;
+        if (snake.fly && inFly(board)) return false;
+        if (getDistance(snake.head, headPosition) > 4) return false;
+        if (snakeSize - snake.points.length < 2) return false;
+        return true;
+    }).forEach(snake => consumables.push({ point:snake.head, element:snake.headElement }));
 
     // Sort by distance and rate - higher rate will give priority over distance
     consumables.sort((c1, c2) => {
@@ -136,7 +182,9 @@ export function getNextSnakeMove(board, logger) {
     const sorround = getSorround(board, headPosition); // (LEFT, UP, RIGHT, DOWN)
     logger('Sorround: ' + JSON.stringify(sorround));
 
-    const raitings = sorround.map(rateElement);
+
+    const safeElements = getSafeElements(board);
+    const raitings = sorround.map(element => safeElements.indexOf(element) != -1 ? element : ELEMENT.WALL).map(rateElement);
     logger('Raitings:' + JSON.stringify(raitings));
 
     const command = getCommandByRaitings(raitings);
@@ -151,7 +199,7 @@ function canEatStone(board) {
 
 function isDeadEnd(board, point) {
     return getSorround(board, point).filter(element => {
-        return element === ELEMENT.STONE || element == ELEMENT.START_FLOOR;
+        return element === ELEMENT.STONE || element === ELEMENT.START_FLOOR;
     }).length >= 2;
 }
 

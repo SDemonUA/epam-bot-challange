@@ -23,6 +23,17 @@ import {
   ELEMENT
 } from './constants';
 
+const ENEMY_HEADS = [
+    ELEMENT.ENEMY_HEAD_DEAD,
+    ELEMENT.ENEMY_HEAD_DOWN,
+    ELEMENT.ENEMY_HEAD_EVIL,
+    ELEMENT.ENEMY_HEAD_FLY,
+    ELEMENT.ENEMY_HEAD_LEFT,
+    ELEMENT.ENEMY_HEAD_RIGHT,
+    ELEMENT.ENEMY_HEAD_SLEEP,
+    ELEMENT.ENEMY_HEAD_UP,
+];
+
 // Here is utils that might help for bot development
 export function getBoardAsString(board) {
     const size = getBoardSize(board);
@@ -201,7 +212,7 @@ export function getPaths(board, from_x, from_y, to_x, to_y, canEatStones) {
     return paths;
 }
 
-function isWalkable(board, x, y, canEatStones) {
+export function isWalkable(board, x, y, canEatStones) {
     const element = getAt(board, x, y);
     if (WALKABLE.indexOf(element) !== -1) return true;
     else if (canEatStones && element === ELEMENT.STONE) return true;
@@ -211,6 +222,10 @@ function isWalkable(board, x, y, canEatStones) {
 
 export function inFury(board) {
     return board.indexOf(ELEMENT.HEAD_EVIL) !== -1;
+}
+
+export function inFly(board) {
+    return board.indexOf(ELEMENT.HEAD_FLY) !== -1;
 }
 
 export function getSnakeModifiers(board, x, y) {
@@ -224,22 +239,11 @@ export function getSnakeModifiers(board, x, y) {
         };
     }
 
-    const heads = [
-        ELEMENT.ENEMY_HEAD_DEAD,
-        ELEMENT.ENEMY_HEAD_DOWN,
-        ELEMENT.ENEMY_HEAD_EVIL,
-        ELEMENT.ENEMY_HEAD_FLY,
-        ELEMENT.ENEMY_HEAD_LEFT,
-        ELEMENT.ENEMY_HEAD_RIGHT,
-        ELEMENT.ENEMY_HEAD_SLEEP,
-        ELEMENT.ENEMY_HEAD_UP,
-    ];
-
     const body = [{ x, y, element: snakeElement }];
     for (let i = 0; i < body.length; i++) {
         const item = body[i];
 
-        if (heads.indexOf(item.element) !== -1) {
+        if (ENEMY_HEADS.indexOf(item.element) !== -1) {
             return {
                 fury: item.element === ELEMENT.ENEMY_HEAD_EVIL,
                 fly: item.element === ELEMENT.ENEMY_HEAD_FLY,
@@ -362,6 +366,163 @@ function _getSurroundCells(x, y) {
     ];
 }
 
-// export function findSnakes(board) {
+export function findSnakes(board) {
+    const snakes = [];
+    for (let i = 0; i < board.length; i++) {
+        const element = board[i];
+        if (ENEMY_HEADS.indexOf(element) !== -1 && element !== ELEMENT.ENEMY_HEAD_DEAD) {
+            const point = getXYByPosition(board, i);
+            snakes.push({
+                head: point,
+                headElement: element,
+                fury: element === ELEMENT.ENEMY_HEAD_EVIL,
+                fly: element === ELEMENT.ENEMY_HEAD_FLY,
+                sleep: element === ELEMENT.ENEMY_HEAD_SLEEP,
+                points: [point]
+            });
+        }
+    }
 
-// }
+    const headPosition = getHeadPosition(board) || {x:0, y:0};
+
+    snakes.sort((s1, s2) => {
+        // Operate on empowered snakes after other snakes cause we don't know where their body is
+        if (s1.fury != s2.fury) {
+            return Number(s1.fury) - Number(s2.fury);
+        }
+
+        if (s1.fly != s2.fly) {
+            return Number(s1.fly) - Number(s2.fly);
+        }
+
+        if (s1.sleep != s2.sleep) {
+            return Number(s1.fly) - Number(s2.fly);
+        }
+
+        const dist1 = Math.abs(s1.head.x - headPosition.x) + Math.abs(s1.head.y - headPosition.y);
+        const dist2 = Math.abs(s2.head.x - headPosition.x) + Math.abs(s2.head.y - headPosition.y);
+
+        return dist1 - dist2;
+    });
+
+    snakes.forEach(snake => {
+        for (let i = 0; i < snake.points.length; i++) {
+            const point = snake.points[i];
+            const element = getAt(board, point.x, point.y);
+
+            if (ENEMY_TAILS.indexOf(element) !== -1) {
+                break;
+            }
+
+            if (element === ELEMENT.ENEMY_HEAD_DEAD || element === ELEMENT.ENEMY_HEAD_EVIL || element === ELEMENT.ENEMY_HEAD_FLY) {
+                if (i) break;
+            }
+
+            const nextPoints = [];
+            const around = {
+                top: { x: point.x, y: point.y - 1 },
+                bottom: { x: point.x, y: point.y + 1 },
+                left: { x: point.x - 1, y: point.y },
+                right: { x: point.x + 1, y: point.y }
+            };
+            switch (element) {
+                case ELEMENT.HEAD_DOWN:
+                    nextPoints.push(around.top);
+                    break;
+                case ELEMENT.HEAD_UP:
+                    nextPoints.push(around.bottom);
+                    break;
+                case ELEMENT.HEAD_LEFT:
+                    nextPoints.push(around.right);
+                    break;
+                case ELEMENT.HEAD_RIGHT:
+                    nextPoints.push(around.left);
+                    break;
+                case ELEMENT.ENEMY_BODY_HORIZONTAL:
+                    nextPoints.push(around.right, around.left);
+                    break;
+                case ELEMENT.ENEMY_BODY_VERTICAL:
+                    nextPoints.push(around.top, around.bottom);
+                    break;
+                case ELEMENT.ENEMY_BODY_LEFT_DOWN:
+                    nextPoints.push(around.left, around.bottom);
+                    break;
+                case ELEMENT.ENEMY_BODY_LEFT_UP:
+                    nextPoints.push(around.left, around.top);
+                    break;
+                case ELEMENT.ENEMY_BODY_RIGHT_DOWN:
+                    nextPoints.push(around.right, around.bottom);
+                    break;
+                case ELEMENT.ENEMY_BODY_RIGHT_UP:
+                    nextPoints.push(around.right, around.top);
+                    break;
+                default:
+                    nextPoints.push(around.top, around.bottom, around.left, around.right);
+                    break;
+            }
+
+            nextPoints.forEach(p => {
+                if (snake.points.some(prevPoint => { if (!prevPoint || !p) { console.log(prevPoint, p, snake.points, nextPoints); return false;} return p.x == prevPoint.x && p.y == prevPoint.y})) {
+                    return; // Skip counted points
+                }
+                const element = getAt(board, p.x, p.y);
+
+                if (p == around.top && VALID_TOPS.indexOf(element) == -1) {
+                    return;
+                }
+
+                if (p == around.bottom && VALID_BOTTOMS.indexOf(element) == -1) {
+                    return;
+                }
+
+                if (p == around.left && VALID_LEFTS.indexOf(element) == -1) {
+                    return;
+                }
+
+                if (p == around.right && VALID_RIGHTS.indexOf(element) == -1) {
+                    return;
+                }
+
+                snake.points.push(p);
+            });
+
+        }
+    });
+
+    return snakes;
+}
+
+const VALID_TOPS = [
+    ELEMENT.ENEMY_BODY_VERTICAL,
+    ELEMENT.ENEMY_BODY_LEFT_DOWN,
+    ELEMENT.ENEMY_BODY_RIGHT_DOWN,
+    ELEMENT.ENEMY_TAIL_END_UP
+];
+
+const VALID_BOTTOMS = [
+    ELEMENT.ENEMY_BODY_VERTICAL,
+    ELEMENT.ENEMY_BODY_LEFT_UP,
+    ELEMENT.ENEMY_BODY_RIGHT_UP,
+    ELEMENT.ENEMY_TAIL_END_DOWN
+];
+
+const VALID_RIGHTS = [
+    ELEMENT.ENEMY_BODY_HORIZONTAL,
+    ELEMENT.ENEMY_BODY_LEFT_UP,
+    ELEMENT.ENEMY_BODY_LEFT_DOWN,
+    ELEMENT.ENEMY_TAIL_END_RIGHT
+];
+
+const VALID_LEFTS = [
+    ELEMENT.ENEMY_BODY_HORIZONTAL,
+    ELEMENT.ENEMY_BODY_RIGHT_UP,
+    ELEMENT.ENEMY_BODY_RIGHT_DOWN,
+    ELEMENT.ENEMY_TAIL_END_LEFT
+];
+
+const ENEMY_TAILS = [
+    ELEMENT.ENEMY_TAIL_END_DOWN,
+    ELEMENT.ENEMY_TAIL_END_UP,
+    ELEMENT.ENEMY_TAIL_END_LEFT,
+    ELEMENT.ENEMY_TAIL_END_RIGHT
+];
