@@ -162,7 +162,7 @@ export function getNextSnakeMove(board, logger) {
             y: current_path.path[0][1]
         };
 
-        const command = getCommandByPoints(headPosition, point);
+        const command = correctBackFlip(board, getCommandByPoints(headPosition, point));
 
         logger('Winned path ' + current_path.element + ' ' + JSON.stringify(current_path.point) + ' ' + JSON.stringify(current_path.path));
 
@@ -187,7 +187,9 @@ export function getNextSnakeMove(board, logger) {
     const raitings = sorround.map(element => safeElements.indexOf(element) != -1 ? element : ELEMENT.WALL).map(rateElement);
     logger('Raitings:' + JSON.stringify(raitings));
 
-    const command = getCommandByRaitings(raitings);
+    const command = correctBackFlip(board, getCommandByRaitings(raitings));
+
+
 
     return command;
 }
@@ -222,6 +224,40 @@ function getCommandByPoints(from, to) {
     }
 
     return '';
+}
+
+function getPointFromCommand(command, headPosition) {
+    switch (command) {
+        case COMMANDS.UP:
+            return { x: headPosition.x, y: headPosition.y - 1 };
+        case COMMANDS.DOWN:
+            return { x: headPosition.x, y: headPosition.y - 1 };
+        case COMMANDS.LEFT:
+            return { x: headPosition.x - 1, y: headPosition.y };
+        case COMMANDS.RIGHT:
+            return { x: headPosition.x + 1, y: headPosition.y };
+
+    }
+}
+
+function correctBackFlip(board, command) {
+    const target = getPointFromCommand(command, getHeadPosition(board));
+    const element = getAt(board, target.x, target.y);
+    const TAILS = [
+        ELEMENT.TAIL_END_DOWN,
+        ELEMENT.TAIL_END_LEFT,
+        ELEMENT.TAIL_END_RIGHT,
+        ELEMENT.TAIL_END_UP
+    ];
+    if (TAILS.indexOf(element) !== -1 && getSelfSnakeSize(board) == 2) {
+        if (command == COMMANDS.UP || command == COMMANDS.DOWN) {
+            return [COMMANDS.LEFT, command].join(',');
+        }
+        else {
+            return [COMMANDS.UP, command].join(',');
+        }
+    }
+    else return command;
 }
 
 function getConsumables(board, canEatStones) {
