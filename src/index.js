@@ -49,7 +49,9 @@ function processBoard(board) {
     function logger(message) {
         programLogs += message + "\n"
     }
+    var startTime = Date.now();
     var answer = getNextSnakeMove(board, logger);
+    logger('Decision made by ' + new Intl.NumberFormat().format(Date.now() - startTime) + 'ms');
     var boardString = getBoardAsString(board);
 
     var logMessage = boardString + "\n\n";
