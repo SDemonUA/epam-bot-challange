@@ -35,12 +35,22 @@ const ENEMY_HEADS = [
 ];
 
 // Here is utils that might help for bot development
+/**
+ *
+ * @param {String} board
+ * @returns {String} For display
+ */
 export function getBoardAsString(board) {
-    const size = getBoardSize(board);
+    // const size = getBoardSize(board);
 
     return getBoardAsArray(board).join("\n");
 }
 
+/**
+ *
+ * @param {String} board
+ * @returns {String[]}
+ */
 export function getBoardAsArray(board) {
   const size = getBoardSize(board);
   var result = [];
@@ -50,14 +60,31 @@ export function getBoardAsArray(board) {
   return result;
 }
 
+/**
+ *
+ * @param {String} board
+ * @returns {number}
+ */
 export function getBoardSize(board) {
     return Math.sqrt(board.length);
 }
 
+/**
+ * @param {String} board
+ * @returns {boolean}
+ */
 export function isGameOver(board) {
     return board.indexOf(ELEMENT.HEAD_DEAD) !== -1;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {number} x
+ * @param {number} y
+ * @param {String} element
+ * @returns {boolean}
+ */
 export function isAt(board, x, y, element) {
     if (isOutOf(board, x, y)) {
         return false;
@@ -65,6 +92,13 @@ export function isAt(board, x, y, element) {
     return getAt(board, x, y) === element;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {number} x
+ * @param {number} y
+ * @returns {String}
+ */
 export function getAt(board, x, y) {
     if (isOutOf(board, x, y)) {
         return ELEMENT.WALL;
@@ -72,9 +106,17 @@ export function getAt(board, x, y) {
     return getElementByXY(board, { x, y });
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {number} x
+ * @param {number} y
+ * @param {String} element
+ * @returns {boolean}
+ */
 export function isNear(board, x, y, element) {
     if (isOutOf(board, x, y)) {
-        return ELEMENT.WALL;
+        return false; //ELEMENT.WALL;
     }
 
     return isAt(board, x + 1, y, element) ||
@@ -83,11 +125,22 @@ export function isNear(board, x, y, element) {
 			  isAt(board, x, y - 1, element);
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {number} x
+ * @param {number} y
+ * @returns {boolean}
+ */
 export function isOutOf(board, x, y) {
     const boardSize = getBoardSize(board);
     return x >= boardSize || y >= boardSize || x < 0 || y < 0;
 }
-
+/**
+ *
+ * @param {String} board
+ * @returns {{x:number, y:number}}
+ */
 export function getHeadPosition(board) {
     return getFirstPositionOf(board, [
         ELEMENT.HEAD_DOWN,
@@ -101,6 +154,12 @@ export function getHeadPosition(board) {
     ]);
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {String[]} elements
+ * @returns {{x:number, y:number}}
+ */
 export function getFirstPositionOf(board, elements) {
     for (var i = 0; i < elements.length; i++) {
         var element = elements[i];
@@ -112,6 +171,12 @@ export function getFirstPositionOf(board, elements) {
     return null;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {number} position
+ * @returns {{x:number, y:number}}
+ */
 export function getXYByPosition(board, position) {
     if (position === -1) {
         return null;
@@ -124,6 +189,11 @@ export function getXYByPosition(board, position) {
     };
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {{x:number, y:number}} position
+ */
 export function getElementByXY(board, position) {
     const size = getBoardSize(board);
     return board[size * position.y + position.x];
@@ -138,6 +208,16 @@ var WALKABLE = [
 
 const MAX_PATHS = 2;
 
+/**
+ *
+ * @param {String} board
+ * @param {number} from_x
+ * @param {number} from_y
+ * @param {number} to_x
+ * @param {number} to_y
+ * @param {boolean} canEatStones
+ * @returns {[number,number][][]}
+ */
 export function getPaths(board, from_x, from_y, to_x, to_y, canEatStones) {
     var dirs = _getSurroundCells(from_x, from_y);
     var paths = getIdealPaths(board, from_x, from_y, to_x, to_y, canEatStones);
@@ -180,15 +260,17 @@ export function getPaths(board, from_x, from_y, to_x, to_y, canEatStones) {
                 var element = getAt(board, dirs[j][0], dirs[j][1]);
 
                 if (isWalkable(board, dirs[j][0], dirs[j][1], canEatStones)) {
+                    /** @type {[number, number]} */
                     var next_cell = [dirs[j][0], dirs[j][1]];
                     if (!moved) {
                         path.push(next_cell);
                         moved = 1;
                     }
                     else {
+                        /** @type {[number, number][]} */
                         var new_path = path.slice();
                         new_path[new_path.length - 1] = next_cell;
-                        paths.splice(i+1, 0, [new_path]);
+                        paths.splice(i+1, 0, new_path);
                         // paths.push(new_path);
                     }
                 }
@@ -212,6 +294,14 @@ export function getPaths(board, from_x, from_y, to_x, to_y, canEatStones) {
     return paths;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {number} x
+ * @param {number} y
+ * @param {boolean} canEatStones
+ * @returns {boolean}
+ */
 export function isWalkable(board, x, y, canEatStones) {
     const element = getAt(board, x, y);
     if (WALKABLE.indexOf(element) !== -1) return true;
@@ -220,22 +310,39 @@ export function isWalkable(board, x, y, canEatStones) {
     return false;
 }
 
+/**
+ *
+ * @param {String} board
+ * @returns {boolean}
+ */
 export function inFury(board) {
     return board.indexOf(ELEMENT.HEAD_EVIL) !== -1;
 }
 
+/**
+ *
+ * @param {String} board
+ * @returns {boolean}
+ */
 export function inFly(board) {
     return board.indexOf(ELEMENT.HEAD_FLY) !== -1;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {number} x
+ * @param {number} y
+ * @returns {{fury:boolean, fly:boolean, dead:boolean}}
+ */
 export function getSnakeModifiers(board, x, y) {
     let snakeElement = getAt(board, x, y);
 
     if (!snakeElement) {
         return {
-            fury: board.indexOf(ELEMENT.HEAD_EVIL),
-            fly: board.indexOf(ELEMENT.HEAD_FLY),
-            dead: board.indexOf(ELEMENT.HEAD_DEAD)
+            fury: board.indexOf(ELEMENT.HEAD_EVIL) !== -1,
+            fly: board.indexOf(ELEMENT.HEAD_FLY) !== -1,
+            dead: board.indexOf(ELEMENT.HEAD_DEAD) !== -1
         };
     }
 
@@ -271,6 +378,11 @@ export function getSnakeModifiers(board, x, y) {
     };
 }
 
+/**
+ *
+ * @param {String} element
+ * @returns {boolean}
+ */
 export function isEnemy(element) {
     return [
         ELEMENT.ENEMY_HEAD_DEAD,
@@ -297,10 +409,21 @@ export function isEnemy(element) {
     ].indexOf(element) !== -1;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {number} from_x
+ * @param {number} from_y
+ * @param {number} to_x
+ * @param {number} to_y
+ * @param {boolean} canEatStones
+ * @returns {[number, number][][]}
+ */
 function getIdealPaths(board, from_x, from_y, to_x, to_y, canEatStones) {
     const paths = [];
 
     HV: {
+        /** @type {[number, number][]} */
         const hv = [];
         for (let x = from_x; x != to_x;){
             if (x > to_x) x--;
@@ -328,12 +451,13 @@ function getIdealPaths(board, from_x, from_y, to_x, to_y, canEatStones) {
     }
 
     VH: {
+        /** @type {[number, number][]} */
         const vh = [];
         for (let y = from_y; y != to_y;) {
             if (y > to_y) y--;
             else y++;
 
-            if (!isWalkable(board, from_x, y)) {
+            if (!isWalkable(board, from_x, y, canEatStones)) {
                 break VH;
             }
 
@@ -344,7 +468,7 @@ function getIdealPaths(board, from_x, from_y, to_x, to_y, canEatStones) {
             if (x > to_x) x--;
             else x++;
 
-            if (!isWalkable(board, x, to_y)) {
+            if (!isWalkable(board, x, to_y, canEatStones)) {
                 break VH;
             }
 
@@ -357,6 +481,12 @@ function getIdealPaths(board, from_x, from_y, to_x, to_y, canEatStones) {
     return paths;
 }
 
+/**
+ *
+ * @param {number} x
+ * @param {number} y
+ * @returns {[[number, number], [number, number], [number, number], [number, number]]}
+ */
 function _getSurroundCells(x, y) {
     return [
         [x, y + 1],
@@ -366,6 +496,20 @@ function _getSurroundCells(x, y) {
     ];
 }
 
+/**
+ * @typedef {object} Snake
+ * @property {{x:number, y:number}} head
+ * @property {String} headElement
+ * @property {boolean} fury
+ * @property {boolean} fly
+ * @property {boolean} sleep
+ * @property {{x:number, y:number}[]} points
+ */
+/**
+ *
+ * @param {String} board
+ * @returns {Snake[]}
+ */
 export function findSnakes(board) {
     const snakes = [];
     for (let i = 0; i < board.length; i++) {

@@ -33,27 +33,27 @@ const MAX_SEARCH = 5;
 const STONE_EATER_MIN_SIZE = 5;
 const RATINGS = {
     [ELEMENT.NONE]: 0,
-    [ELEMENT.FLYING_PILL]: 1,
-    [ELEMENT.FURY_PILL]: 10,
+    [ELEMENT.FLYING_PILL]: 0,
+    [ELEMENT.FURY_PILL]: 15,
     [ELEMENT.STONE]: 5,
-    [ELEMENT.APPLE]: 5,
-    [ELEMENT.GOLD]: 7,
+    [ELEMENT.APPLE]: 6,
+    [ELEMENT.GOLD]: 5,
 
     [ELEMENT.ENEMY_HEAD_DEAD]: 20,
     [ELEMENT.ENEMY_HEAD_DOWN]: 20,
-    // [ELEMENT.ENEMY_HEAD_EVIL]: 20,
+    [ELEMENT.ENEMY_HEAD_EVIL]: 15,
     [ELEMENT.ENEMY_HEAD_FLY]: 20,
     [ELEMENT.ENEMY_HEAD_LEFT]: 20,
     [ELEMENT.ENEMY_HEAD_RIGHT]: 20,
     [ELEMENT.ENEMY_HEAD_SLEEP]: 20,
     [ELEMENT.ENEMY_HEAD_UP]: 20,
 
-    [ELEMENT.ENEMY_BODY_HORIZONTAL]: 15,
-    [ELEMENT.ENEMY_BODY_LEFT_DOWN]: 15,
-    [ELEMENT.ENEMY_BODY_LEFT_UP]: 15,
-    [ELEMENT.ENEMY_BODY_RIGHT_DOWN]: 15,
-    [ELEMENT.ENEMY_BODY_RIGHT_UP]: 15,
-    [ELEMENT.ENEMY_BODY_VERTICAL]: 15,
+    [ELEMENT.ENEMY_BODY_HORIZONTAL]: 18,
+    [ELEMENT.ENEMY_BODY_LEFT_DOWN]: 18,
+    [ELEMENT.ENEMY_BODY_LEFT_UP]: 18,
+    [ELEMENT.ENEMY_BODY_RIGHT_DOWN]: 18,
+    [ELEMENT.ENEMY_BODY_RIGHT_UP]: 18,
+    [ELEMENT.ENEMY_BODY_VERTICAL]: 18,
 
     // [ELEMENT.ENEMY_TAIL_END_DOWN]: 10,
     // [ELEMENT.ENEMY_TAIL_END_LEFT]: 10,
@@ -61,6 +61,11 @@ const RATINGS = {
     // [ELEMENT.ENEMY_TAIL_END_UP]: 10,
 };
 
+/**
+ *
+ * @param {String} board
+ * @returns {String[]}
+ */
 function getSafeElements(board) {
     const safeElements = [
         ELEMENT.NONE, ELEMENT.FLYING_PILL, ELEMENT.FURY_PILL, ELEMENT.APPLE, ELEMENT.GOLD,
@@ -93,37 +98,49 @@ function getSafeElements(board) {
     return safeElements;
 }
 
+/**
+ *
+ * @param {{x:number, y:number}} point1
+ * @param {{x:number, y:number}} point2
+ * @returns {number}
+ */
 function getDistance(point1, point2) {
     return Math.abs(point1.x - point2.x) + Math.abs(point1.y - point2.y);
 }
 
-let hasStone = false;
+let stones = 0;
 let furyTicks = 0;
 let flyTicks = 0;
 let enemySnakes = null;
 
 function resetState() {
-    console.log('RESET');
-    hasStone = false;
+    stones = 0;
     furyTicks = 0;
     flyTicks = 0;
     enemySnakes = null;
 }
 
-let valueMap = [];
+let initialBoardSize;
 
+/**
+ *
+ * @param {String} board Current board state
+ * @param {function} logger Logger function
+ * @returns {String}
+ */
 export function getNextSnakeMove(board, logger) {
-    valueMap = [];
-
+    initialBoardSize = board.length;
     if (isGameOver(board)) {
         resetState();
         return '';
     }
+
     const headPosition = getHeadPosition(board);
     if (!headPosition) {
         resetState();
         return '';
     }
+
     logger('Head:' + JSON.stringify(headPosition));
 
     if (board.indexOf(ELEMENT.HEAD_SLEEP) != -1) { // New game started
@@ -131,11 +148,21 @@ export function getNextSnakeMove(board, logger) {
     }
 
     enemySnakes = findSnakes(board);
+    console.assert(board.length == initialBoardSize, 'after find snakes');
+
     board = markDangerZone(board, enemySnakes);
+    console.assert(board.length == initialBoardSize, 'mark danger zone');
+
+    logger(`Snakes ${enemySnakes.length}| ${enemySnakes.map(s => JSON.stringify(s.head) + ' size ' + s.points.length).join(', ')}`);
+
+    // TODO: After 200 game ticks do not eat stones unless u bigger than biggest snake + 2 on the board [Dima Sokol 07-02-2019]
+    // TODO: hasStone must be a counter [Dima Sokol 07-02-2019]
 
     const snakeSize = getSelfSnakeSize(board);
     const stonesEatable = canEatStone(board);
+    console.assert(board.length == initialBoardSize, 'after can eat');
     const consumables = getConsumables(board, stonesEatable);
+    console.assert(board.length == initialBoardSize, 'after get consumables');
 
     // Add vulnarable snakes as targets
     enemySnakes.filter(snake => {
@@ -237,7 +264,7 @@ export function getNextSnakeMove(board, logger) {
         const raitings = sorround
             .map((el, i) => {
                 var indexToCommand = ['LEFT', 'UP', 'RIGHT', 'DOWN'];
-                if (isDeadEnd(board, getPointFromCommand(board, indexToCommand[i]))) {
+                if (isDeadEnd(board, getPointFromCommand(indexToCommand[i], headPosition))) {
                     return null;
                 }
                 return el;
@@ -260,9 +287,23 @@ export function getNextSnakeMove(board, logger) {
     }
 
     const nextPoint = getPointFromCommand(command, headPosition);
+
+    if (stones && furyTicks >= 1 && !flyTicks) {
+        const myself = getSorroundPoints(headPosition, getBoardSize(board)).filter(p => isSelf(board, p))[0];
+        if (myself) {
+            command = correctBackFlip(board, getCommandByPoints(headPosition, myself));
+        }
+        if (getSelfSnakeSize(board) == 2) {
+            command += ',' + COMMANDS.ACT; stones++;
+        }
+        stones--;
+    }
+
+    logger(`Has stones: ${stones}, fury ticks: ${furyTicks}, fly ticks: ${flyTicks}`);
+
     switch (getElementByXY(board, nextPoint)) {
         case ELEMENT.STONE:
-            hasStone = true;
+            stones++;
             break;
         case ELEMENT.FURY_PILL:
             furyTicks = 10;
@@ -273,23 +314,37 @@ export function getNextSnakeMove(board, logger) {
         default:
             break;
     }
-    logger(`Next move ` + JSON.stringify(nextPoint));
-    logger(`Has stone: ${hasStone}, fury ticks: ${furyTicks}, fly ticks: ${flyTicks}`);
 
     return command;
 }
 
-
+/**
+ *
+ * @param {String} board
+ * @returns {boolean}
+ */
 function canEatStone(board) {
     return inFury(board) || getSelfSnakeSize(board) >= STONE_EATER_MIN_SIZE;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {{x:number, y:number}} point
+ * @returns {boolean}
+ */
 function isDeadEnd(board, point) {
     return getSorround(board, point).filter(element => {
         return element === ELEMENT.WALL || element === ELEMENT.START_FLOOR;
     }).length >= 2;
 }
 
+/**
+ *
+ * @param {{x:number, y:number}} from
+ * @param {{x:number, y:number}} to
+ * @returns {String}
+ */
 function getCommandByPoints(from, to) {
     if (from.x == to.x) {
         if (from.y > to.y) {
@@ -311,6 +366,12 @@ function getCommandByPoints(from, to) {
     return '';
 }
 
+/**
+ *
+ * @param {String} command
+ * @param {{x:number, y:number}} headPosition
+ * @returns {{x:number, y:number}}
+ */
 function getPointFromCommand(command, headPosition) {
     switch (command) {
         case COMMANDS.UP:
@@ -325,17 +386,24 @@ function getPointFromCommand(command, headPosition) {
     }
 }
 
-/** @deprecated */
+/**
+ *
+ * @deprecated
+ * @param {String} board
+ * @param {String} command
+ * @returns {String}
+ */
 function correctBackFlip(board, command) {
     const target = getPointFromCommand(command, getHeadPosition(board));
-    const element = getAt(board, target.x, target.y);
-    const TAILS = [
-        ELEMENT.TAIL_END_DOWN,
-        ELEMENT.TAIL_END_LEFT,
-        ELEMENT.TAIL_END_RIGHT,
-        ELEMENT.TAIL_END_UP
-    ];
-    if (TAILS.indexOf(element) !== -1 && getSelfSnakeSize(board) == 2) {
+    // const element = getAt(board, target.x, target.y);
+    // const TAILS = [
+    //     ELEMENT.TAIL_END_DOWN,
+    //     ELEMENT.TAIL_END_LEFT,
+    //     ELEMENT.TAIL_END_RIGHT,
+    //     ELEMENT.TAIL_END_UP
+    // ];
+    if (isSelf(board, target)) {
+    // if (TAILS.indexOf(element) !== -1 && getSelfSnakeSize(board) == 2) {
         if (command == COMMANDS.UP || command == COMMANDS.DOWN) {
             return [COMMANDS.LEFT, command].join(',');
         }
@@ -346,11 +414,24 @@ function correctBackFlip(board, command) {
     else return command;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {boolean} canEatStones
+ * @returns {{point:{x:number, y:number}, element:String}[]}
+ */
 function getConsumables(board, canEatStones) {
     const items = [];
     for (let i = 0; i < board.length; i++) {
         const element = board[i];
         const point = getXYByPosition(board, i);
+
+        if (Math.round(point.x) != point.x || Math.round(point.y) != point.y) {
+            console.warn('Point', point, 'Position', i, 'Board length', board.length, getBoardSize(board), 'Initial', initialBoardSize);
+            point.x = Math.round(point.x);
+            point.y = Math.round(point.y);
+        }
+
         if (isDeadEnd(board, point)) {
             continue;
         }
@@ -361,7 +442,7 @@ function getConsumables(board, canEatStones) {
                 element
             });
         }
-        else if (element === ELEMENT.STONE && canEatStones) {
+        else if (element === ELEMENT.STONE && canEatStones && !flyTicks) {
             items.push({
                 point,
                 element
@@ -378,6 +459,12 @@ function getConsumables(board, canEatStones) {
     return items;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {{x:number, y:number}} position
+ * @returns {String[]}
+ */
 function getSorround(board, position) {
     const p = position;
     return [
@@ -388,6 +475,11 @@ function getSorround(board, position) {
     ];
 }
 
+/**
+ *
+ * @param {String} element
+ * @returns {number}
+ */
 function rateElement(element) {
     let rating = RATINGS[element];
 
@@ -398,7 +490,11 @@ function rateElement(element) {
     return rating;
 }
 
-
+/**
+ *
+ * @param {number[]} raitings
+ * @returns {String}
+ */
 function getCommandByRaitings(raitings) {
     var indexToCommand = ['LEFT', 'UP', 'RIGHT', 'DOWN'];
     var maxIndex = 0;
@@ -414,6 +510,11 @@ function getCommandByRaitings(raitings) {
     return indexToCommand[maxIndex];
 }
 
+/**
+ *
+ * @param {String} board
+ * @returns {number}
+ */
 function getSelfSnakeSize(board) {
     var size = 0;
     var parts = [
@@ -434,6 +535,12 @@ function getSelfSnakeSize(board) {
     return size;
 }
 
+/**
+ *
+ * @param {{x:number, y:number}} point
+ * @param {number} boardSize
+ * @returns {{x:number, y:number}[]}
+ */
 function getSorroundPoints(point, boardSize) {
     const points = [];
     if (point.y != 0) points.push({ x: point.x, y: point.y - 1 });
@@ -443,32 +550,52 @@ function getSorroundPoints(point, boardSize) {
     return points;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {Snake[]} enemySnakes
+ * @returns {String}
+ */
 function markDangerZone(board, enemySnakes) {
-    const safeSnakeSize = getSelfSnakeSize(board) + 1;
+    const safeSnakeSize = getSelfSnakeSize(board) - 2;
+    const dangerSnakeSize = getSelfSnakeSize(board) + 2;
     const headPosition = getHeadPosition(board);
     const boardSize = getBoardSize(board);
+    const prevLength = board.length;
+
     enemySnakes.filter(snake => {
-        if (furyTicks < getDistance(headPosition, snake.head) != snake.fury) {
+        if ((furyTicks >= getDistance(headPosition, snake.head)) != snake.fury) {
             return snake.fury;
         }
-
         return snake.points.length > safeSnakeSize;
     }).forEach(snake => {
-        console.log('Dangerous', snake);
+        // console.log('Dangerous', snake);
         const firstCircle = getSorroundPoints(snake.head, boardSize);
-        const secondSircle = firstCircle.concat.apply(firstCircle, firstCircle.map(p => getSorroundPoints(p, boardSize)));
 
-        secondSircle.forEach(point => {
+        let dangerArea = firstCircle;
+        if (snake.points.length >= dangerSnakeSize) {
+            const secondSircle = firstCircle.concat.apply(firstCircle, firstCircle.map(p => getSorroundPoints(p, boardSize)));
+            dangerArea = secondSircle;
+        }
+
+
+        dangerArea.forEach(point => {
             const position = point.x + point.y * boardSize;
             const element = board[position];
             if (element == ELEMENT.FURY_PILL && getDistance(point, headPosition) < getDistance(point, snake.head)) {
                 return;
             }
 
-            board = board.substring(0, position) + ELEMENT.WALL + board.substring(position);
-            // board[position] = ELEMENT.WALL;
+            if (isSelf(board, point)) {
+                return;
+            }
+
+            board = board.substring(0, position) + ELEMENT.WALL + board.substring(position+1);
         });
     });
+
+    // console.assert(prevLength == board.length, `markDangerZone have changed board length ${prevLength} -> ${board.length}`);
+    // console.assert(boardSize == getBoardSize(board), `markDangerZone have added something unneded ${boardSize} != ${getBoardSize(board)}`);
 
     return board;
 }
@@ -478,6 +605,7 @@ function markDangerZone(board, enemySnakes) {
  * @param {String} board Game board
  * @param {{x:number, y:number}} start Starting point
  * @param {{x:number, y:number}[]} ends End points
+ * @returns {{x:number, y:number}[][]}
  */
 function findPaths(board, start, ends) {
     const boardSize = getBoardSize(board);
@@ -498,12 +626,20 @@ function findPaths(board, start, ends) {
     let max = 10000;
     while (points.length) {
         if (!max--) {
-            debugger;
             break;
         };
         let { point, snakeSize, value } = points.shift();
 
-        if (ends.every(p => typeof valueMap[p.x][p.y] !== 'undefined')) {
+        if (ends.every(p => {
+            try {
+                return typeof valueMap[p.x][p.y] !== 'undefined'
+            }
+            catch (e) {
+                console.error(e, p);
+                console.log(JSON.stringify(valueMap));
+            }
+            return false;
+        })) {
             break; // All points found
         }
 
@@ -564,6 +700,14 @@ function findPaths(board, start, ends) {
     return paths;
 }
 
+/**
+ *
+ * @param {String} board
+ * @param {{x:number, y:number}} point
+ * @param {number} snakeSize
+ * @param {number} distance
+ * @returns {boolean}
+ */
 function isWalkable(board, point, snakeSize, distance) {
     const element = getElementByXY(board, point);
 
@@ -639,9 +783,49 @@ function isWalkable(board, point, snakeSize, distance) {
     }
 }
 
+/**
+ *
+ * @param {{x:number, y:number}} point
+ * @returns {Snake}
+ */
 function getSnakeByPoint(point) {
     if (!enemySnakes) return null;
     return enemySnakes.find(snake => snake.points.some(snakePoint => {
         return point.x == snakePoint.x && point.y == snakePoint.y
     }));
+}
+
+/**
+ *
+ * @param {String} board
+ * @param {{x:number, y:number}} point
+ * @returns {boolean}
+ */
+function isSelf(board, point) {
+    switch (getElementByXY(board, point)) {
+        case ELEMENT.HEAD_DEAD:
+        case ELEMENT.HEAD_DOWN:
+        case ELEMENT.HEAD_EVIL:
+        case ELEMENT.HEAD_FLY:
+        case ELEMENT.HEAD_LEFT:
+        case ELEMENT.HEAD_RIGHT:
+        case ELEMENT.HEAD_SLEEP:
+        case ELEMENT.HEAD_UP:
+
+        case ELEMENT.BODY_HORIZONTAL:
+        case ELEMENT.BODY_LEFT_DOWN:
+        case ELEMENT.BODY_LEFT_UP:
+        case ELEMENT.BODY_RIGHT_DOWN:
+        case ELEMENT.BODY_RIGHT_UP:
+        case ELEMENT.BODY_VERTICAL:
+
+        case ELEMENT.TAIL_END_DOWN:
+        case ELEMENT.TAIL_END_LEFT:
+        case ELEMENT.TAIL_END_RIGHT:
+        case ELEMENT.TAIL_END_UP:
+        case ELEMENT.TAIL_INACTIVE:
+            return true;
+        default:
+            return false;
+    }
 }
