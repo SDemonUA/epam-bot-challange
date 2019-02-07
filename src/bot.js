@@ -108,6 +108,7 @@ function getDistance(point1, point2) {
     return Math.abs(point1.x - point2.x) + Math.abs(point1.y - point2.y);
 }
 
+// State
 let stones = 0;
 let furyTicks = 0;
 let flyTicks = 0;
@@ -148,21 +149,16 @@ export function getNextSnakeMove(board, logger) {
     }
 
     enemySnakes = findSnakes(board);
-    console.assert(board.length == initialBoardSize, 'after find snakes');
-
     board = markDangerZone(board, enemySnakes);
     console.assert(board.length == initialBoardSize, 'mark danger zone');
 
     logger(`Snakes ${enemySnakes.length}| ${enemySnakes.map(s => JSON.stringify(s.head) + ' size ' + s.points.length).join(', ')}`);
 
     // TODO: After 200 game ticks do not eat stones unless u bigger than biggest snake + 2 on the board [Dima Sokol 07-02-2019]
-    // TODO: hasStone must be a counter [Dima Sokol 07-02-2019]
 
     const snakeSize = getSelfSnakeSize(board);
     const stonesEatable = canEatStone(board);
-    console.assert(board.length == initialBoardSize, 'after can eat');
     const consumables = getConsumables(board, stonesEatable);
-    console.assert(board.length == initialBoardSize, 'after get consumables');
 
     // Add vulnarable snakes as targets
     enemySnakes.filter(snake => {
@@ -421,6 +417,7 @@ function correctBackFlip(board, command) {
  * @returns {{point:{x:number, y:number}, element:String}[]}
  */
 function getConsumables(board, canEatStones) {
+    const boardLength = board.length;
     const items = [];
     for (let i = 0; i < board.length; i++) {
         const element = board[i];
@@ -543,10 +540,10 @@ function getSelfSnakeSize(board) {
  */
 function getSorroundPoints(point, boardSize) {
     const points = [];
-    if (point.y != 0) points.push({ x: point.x, y: point.y - 1 });
-    if (point.y != boardSize) points.push({ x: point.x, y: point.y + 1 });
-    if (point.x != 0) points.push({ x: point.x - 1, y: point.y });
-    if (point.x != boardSize) points.push({ x: point.x + 1, y: point.y });
+    if (point.y > 0) points.push({ x: point.x, y: point.y - 1 });
+    if (point.y < boardSize - 1) points.push({ x: point.x, y: point.y + 1 });
+    if (point.x > 0) points.push({ x: point.x - 1, y: point.y });
+    if (point.x < boardSize - 1) points.push({ x: point.x + 1, y: point.y });
     return points;
 }
 
@@ -561,7 +558,6 @@ function markDangerZone(board, enemySnakes) {
     const dangerSnakeSize = getSelfSnakeSize(board) + 2;
     const headPosition = getHeadPosition(board);
     const boardSize = getBoardSize(board);
-    const prevLength = board.length;
 
     enemySnakes.filter(snake => {
         if ((furyTicks >= getDistance(headPosition, snake.head)) != snake.fury) {
@@ -569,7 +565,6 @@ function markDangerZone(board, enemySnakes) {
         }
         return snake.points.length > safeSnakeSize;
     }).forEach(snake => {
-        // console.log('Dangerous', snake);
         const firstCircle = getSorroundPoints(snake.head, boardSize);
 
         let dangerArea = firstCircle;
@@ -582,6 +577,7 @@ function markDangerZone(board, enemySnakes) {
         dangerArea.forEach(point => {
             const position = point.x + point.y * boardSize;
             const element = board[position];
+
             if (element == ELEMENT.FURY_PILL && getDistance(point, headPosition) < getDistance(point, snake.head)) {
                 return;
             }
@@ -590,12 +586,15 @@ function markDangerZone(board, enemySnakes) {
                 return;
             }
 
-            board = board.substring(0, position) + ELEMENT.WALL + board.substring(position+1);
+            if (getDistance(point, snake.head) > getDistance(headPosition, snake.head)) {
+                return;
+            }
+
+            const before = board.length;
+            board = board.substring(0, position) + ELEMENT.WALL + board.substring(position + 1);
+            console.assert(before == board.length, `Size changed position: ${position}, point: ${JSON.stringify(point)}, size: ${boardSize}`);
         });
     });
-
-    // console.assert(prevLength == board.length, `markDangerZone have changed board length ${prevLength} -> ${board.length}`);
-    // console.assert(boardSize == getBoardSize(board), `markDangerZone have added something unneded ${boardSize} != ${getBoardSize(board)}`);
 
     return board;
 }
