@@ -130,14 +130,6 @@ export function getNextSnakeMove(board, logger) {
         resetState();
     }
 
-    if (furyTicks) {
-        furyTicks--;
-    }
-
-    if (flyTicks) {
-        flyTicks--;
-    }
-
     enemySnakes = findSnakes(board);
     board = markDangerZone(board, enemySnakes);
 
@@ -258,6 +250,14 @@ export function getNextSnakeMove(board, logger) {
     }
 
     command = correctBackFlip(board, command);
+
+    if (furyTicks) {
+        furyTicks--;
+    }
+
+    if (flyTicks) {
+        flyTicks--;
+    }
 
     const nextPoint = getPointFromCommand(command, headPosition);
     switch (getElementByXY(board, nextPoint)) {
@@ -454,18 +454,20 @@ function markDangerZone(board, enemySnakes) {
 
         return snake.points.length > safeSnakeSize;
     }).forEach(snake => {
+        console.log('Dangerous', snake);
         const firstCircle = getSorroundPoints(snake.head, boardSize);
         const secondSircle = firstCircle.concat.apply(firstCircle, firstCircle.map(p => getSorroundPoints(p, boardSize)));
 
-        secondSircle.forEach( point => {
+        secondSircle.forEach(point => {
             const position = point.x + point.y * boardSize;
             const element = board[position];
             if (element == ELEMENT.FURY_PILL && getDistance(point, headPosition) < getDistance(point, snake.head)) {
                 return;
             }
 
-            board[position] = ELEMENT.WALL;
-        })
+            board = board.substring(0, position) + ELEMENT.WALL + board.substring(position);
+            // board[position] = ELEMENT.WALL;
+        });
     });
 
     return board;
