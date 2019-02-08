@@ -26,7 +26,7 @@ import {
 } from './utils';
 
 var CONSUMABLE_ELEMENTS = [
-    ELEMENT.APPLE, ELEMENT.GOLD, ELEMENT.FLYING_PILL, ELEMENT.FURY_PILL//, ELEMENT.STONE
+    ELEMENT.APPLE, ELEMENT.GOLD, ELEMENT.FURY_PILL//, ELEMENT.FLYING_PILL //, ELEMENT.STONE
 ];
 
 const MAX_SEARCH = 5;
@@ -36,7 +36,7 @@ const RATINGS = {
     [ELEMENT.FLYING_PILL]: 0,
     [ELEMENT.FURY_PILL]: 15,
     [ELEMENT.STONE]: 5,
-    [ELEMENT.APPLE]: 6,
+    [ELEMENT.APPLE]: 5,
     [ELEMENT.GOLD]: 5,
 
     [ELEMENT.ENEMY_HEAD_DEAD]: 20,
@@ -114,6 +114,7 @@ let furyTicks = 0;
 let flyTicks = 0;
 let enemySnakes = null;
 let prevCommand = '';
+let tick = 0;
 
 function resetState() {
     stones = 0;
@@ -121,6 +122,19 @@ function resetState() {
     flyTicks = 0;
     enemySnakes = null;
     prevCommand = '';
+    tick = 0;
+}
+
+function doTick() {
+    if (furyTicks) {
+        furyTicks--;
+    }
+
+    if (flyTicks) {
+        flyTicks--;
+    }
+
+    tick++;
 }
 
 let initialBoardSize;
@@ -151,6 +165,7 @@ export function getNextSnakeMove(board, logger) {
     }
 
     enemySnakes = findSnakes(board);
+
     board = markDangerZone(board, enemySnakes);
     console.assert(board.length == initialBoardSize, 'mark danger zone');
 
@@ -158,8 +173,6 @@ export function getNextSnakeMove(board, logger) {
     console.assert(board.length == initialBoardSize, 'after backflip denie');
 
     logger(`Snakes ${enemySnakes.length}| ${enemySnakes.map(s => JSON.stringify(s.head) + ' size ' + s.points.length).join(', ')}`);
-
-    // TODO: After 200 game ticks do not eat stones unless u bigger than biggest snake + 2 on the board [Dima Sokol 07-02-2019]
 
     const snakeSize = getSelfSnakeSize(board);
     const stonesEatable = canEatStone(board);
@@ -171,13 +184,18 @@ export function getNextSnakeMove(board, logger) {
         if (snake.fly != inFly(board)) return false;
         if (snakeSize - snake.points.length < 2 && !inFury(board)) return false;
 
-        logger('Eatable snake on distance: (' + getDistance(snake.head, headPosition) + ') , head position: ' + JSON.stringify(snake.head));
+        logger('Eatable snake on distance: ' + getDistance(snake.head, headPosition) + ' , head position: ' + JSON.stringify(snake.head));
         if (getDistance(snake.head, headPosition) > 8) return false;
 
         return true;
     }).forEach(snake => {
         if (!inFury(board)) {
-            consumables.push({ point: snake.head, element: snake.headElement })
+            consumables.push({ point: snake.head, element: snake.headElement });
+            getSorroundPoints(snake.head, getBoardSize(board))
+                .filter(p => !isEnemy(getElementByXY(board, p)))
+                .filter(p => isWalkable(board, p, snakeSize, getDistance(p, headPosition)))
+                .forEach(p => consumables.push({ point: p, element: snake.headElement }));
+
         }
         else {
             const canEatWhole = !snake.fury || snakeSize - snake.points.length >= 2;
@@ -185,74 +203,43 @@ export function getNextSnakeMove(board, logger) {
         }
     });
 
-    // Sort by distance and rate - higher rate will give priority over distance
-    consumables.sort((c1, c2) => {
-        const distance_rate1 = Math.abs(c1.point.x - headPosition.x) + Math.abs(c1.point.y - headPosition.y) - rateElement(c1.element);
-        const distance_rate2 = Math.abs(c2.point.x - headPosition.x) + Math.abs(c2.point.y - headPosition.y) - rateElement(c2.element);
 
-        return distance_rate1 - distance_rate2;// || rateElement(c2.element) - rateElement(c1.element);
-    });
 
     let current_path;
 
     const paths = findPaths(board, headPosition, consumables.map(cons => cons.point));
-    if (!paths.length || !paths[0] || !paths[0].length) {
+
+    // Sort by distance and rate - higher rate will give priority over distance
+    paths.sort((p1, p2) => {
+        const densityRate1 = consumables.filter(c => getDistance(c.point, p1.path[p1.path.length - 1]) <= 5)
+            .map(c => rateElement(c.element))
+            .reduce((total, cur) => total + cur, 0) / 2;
+        const densityRate2 = consumables.filter(c => getDistance(c.point, p2.path[p2.path.length - 1]) <= 5)
+            .map(c => rateElement(c.element))
+            .reduce((total, cur) => total + cur, 0) / 2;
+
+        return p1.path.length - p2.path.length + rateElement(p2.target) - rateElement(p1.target) + densityRate2 - densityRate1;
+    });
+
+    if (!paths.length) {
         logger('No path to was found');
     }
     else {
-        const point = paths[0][paths[0].length - 1];
+        const point = paths[0].path[paths[0].path.length - 1];
         const element = getElementByXY(board, point);
         current_path = {
-            path: paths[0],
+            path: paths[0].path,
             rating: rateElement(element),
             element: element,
             point: point
         }
     }
-    // for (let i = 0; i < consumables.length && i < MAX_SEARCH; i++) {
-    //     const item = consumables[i];
-    //     const paths = getPaths(board, headPosition.x, headPosition.y, item.point.x, item.point.y, stonesEatable);
-    //     const rating = rateElement(item.element);
-
-    //     // console.log('Distance:', Math.abs(item.point.x - headPosition.x) + Math.abs(item.point.y - headPosition.y), item.element);
-
-    //     if (!paths.length) {
-    //         logger('No path to ' + JSON.stringify(item));
-    //         continue;
-    //     }
-
-    //     if (
-    //         !current_path ||
-    //         paths[0].length - rating < current_path.path.length - current_path.rating
-    //     ) {
-    //         current_path = {
-    //             path: paths[0],
-    //             rating: rating,
-    //             element: item.element,
-    //             point: item.point
-    //         }
-    //     }
-    // }
 
     let command = '';
     if (current_path) {
-        const point = current_path.path[0]/* {
-            x: current_path.path[0][0],
-            y: current_path.path[0][1]
-        } */;
-
+        const point = current_path.path[0]
         command = getCommandByPoints(headPosition, point);
         logger('Winned path ' + current_path.element + ' ' + JSON.stringify(current_path.point) + ' ' + JSON.stringify(current_path.path));
-
-        // if (command) {
-        //     return command;
-        // }
-        // else if (current_path.path.length > 1){
-        //     return getCommandByPoints(headPosition, {
-        //         x: current_path.path[1][0],
-        //         y: current_path.path[1][1]
-        //     })
-        // }
     }
 
     if (!command) {
@@ -279,30 +266,18 @@ export function getNextSnakeMove(board, logger) {
 
     command = correctBackFlip(board, command);
 
-    if (furyTicks) {
-        furyTicks--;
-    }
-
-    if (flyTicks) {
-        flyTicks--;
-    }
+    doTick();
 
     const nextPoint = getPointFromCommand(command, headPosition);
 
-    prevCommand = command
+    prevCommand = command;
 
     if (stones && furyTicks >= 1 && !flyTicks) {
-        // const myself = getSorroundPoints(headPosition, getBoardSize(board)).filter(p => isSelf(board, p))[0];
-        // if (myself) {
-        //     command = correctBackFlip(board, getCommandByPoints(headPosition, myself));
-        // }
-        // if (getSelfSnakeSize(board) == 2) {
-            command += ',' + COMMANDS.ACT;
-        // }
+        command += ',' + COMMANDS.ACT;
         stones--;
     }
 
-    logger(`Has stones: ${stones}, fury ticks: ${furyTicks}, fly ticks: ${flyTicks}`);
+    logger(`Has stones: ${stones}, fury ticks: ${furyTicks}, fly ticks: ${flyTicks}, Tick: ${tick}`);
 
     switch (getElementByXY(board, nextPoint)) {
         case ELEMENT.STONE:
@@ -424,8 +399,9 @@ function correctBackFlip(board, command) {
  * @returns {{point:{x:number, y:number}, element:String}[]}
  */
 function getConsumables(board, canEatStones) {
-    const boardLength = board.length;
     const items = [];
+    const snakeSize = getSelfSnakeSize(board);
+
     for (let i = 0; i < board.length; i++) {
         const element = board[i];
         const point = getXYByPosition(board, i);
@@ -447,17 +423,17 @@ function getConsumables(board, canEatStones) {
             });
         }
         else if (element === ELEMENT.STONE && canEatStones && !flyTicks) {
+
+            // Avoid targeting stones if your snake become smaller than biggest enemy snake
+            if (/* tick > 200 &&  */!furyTicks && snakeSize < enemySnakes.reduce(function(max, snake) { return Math.max(max, snake.points.length) }, 0) + 3) {
+                continue;
+            }
+
             items.push({
                 point,
                 element
             });
         }
-        // else if (isEnemy(element) && inFury(board)) {
-        //     items.push({
-        //         point,
-        //         element
-        //     });
-        // }
     }
 
     return items;
@@ -580,7 +556,6 @@ function markDangerZone(board, enemySnakes) {
             dangerArea = secondSircle;
         }
 
-
         dangerArea.forEach(point => {
             const position = point.x + point.y * boardSize;
             const element = board[position];
@@ -635,7 +610,7 @@ function denieBackFlip(board, prevCommand) {
  * @param {String} board Game board
  * @param {{x:number, y:number}} start Starting point
  * @param {{x:number, y:number}[]} ends End points
- * @returns {{x:number, y:number}[][]}
+ * @returns {{path:{x:number, y:number}[], target:String}[]}
  */
 function findPaths(board, start, ends) {
     const boardSize = getBoardSize(board);
@@ -656,6 +631,7 @@ function findPaths(board, start, ends) {
     let max = 10000;
     while (points.length) {
         if (!max--) {
+            console.warn('Max points for wave algorithm reached');
             break;
         };
         let { point, snakeSize, value } = points.shift();
@@ -725,7 +701,7 @@ function findPaths(board, start, ends) {
         }
 
         path.reverse();
-        paths.push(path);
+        paths.push({path, target:getElementByXY(board, end)});
     }
     return paths;
 }
