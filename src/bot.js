@@ -36,7 +36,7 @@ const RATINGS = {
     [ELEMENT.FURY_PILL]: 5,
     [ELEMENT.STONE]: 1,
     [ELEMENT.APPLE]: 1,
-    [ELEMENT.GOLD]: 1,
+    [ELEMENT.GOLD]: 3,
 
     [ELEMENT.ENEMY_HEAD_DEAD]: 15,
     [ELEMENT.ENEMY_HEAD_DOWN]: 15,
@@ -74,6 +74,8 @@ function getSafeElements(board) {
 
         ELEMENT.BODY_HORIZONTAL, ELEMENT.BODY_VERTICAL, ELEMENT.BODY_LEFT_DOWN,
         ELEMENT.BODY_LEFT_UP, ELEMENT.BODY_RIGHT_DOWN, ELEMENT.BODY_RIGHT_UP,
+        ELEMENT.HEAD_DEAD, ELEMENT.HEAD_DOWN, ELEMENT.HEAD_UP, ELEMENT.HEAD_EVIL,
+        ELEMENT.HEAD_FLY, ELEMENT.HEAD_LEFT, ELEMENT.HEAD_RIGHT, ELEMENT.HEAD_SLEEP,
 
         ELEMENT.ENEMY_HEAD_DEAD,
     ];
@@ -334,15 +336,25 @@ function canEatStone(board) {
  * @returns {boolean}
  */
 function isDeadEnd(board, point, safeElements) {
+    const sorround = getSorroundPoints(point, getBoardSize(board));
+    let blocks;
     if (!safeElements) {
-        return getSorround(board, point).filter(element => {
+        blocks = sorround.filter( p => {
+            const element = getElementByXY(board, p);
             return element === ELEMENT.WALL || element === ELEMENT.START_FLOOR;
-        }).length >= 2;
+        });
+    }
+    else {
+      blocks = sorround.filter( p => {
+        const element = getElementByXY(board, p);
+        return safeElements.indexOf(element) == -1;
+      });
     }
 
-    return getSorround(board, point).filter(element => {
-        return safeElements.indexOf(element) == -1;
-    }).length >= 2;
+    if (blocks.length > 2) return true;
+    if (blocks.length < 2) return false;
+    return blocks[0].x == blocks[1].x || blocks[0].y == blocks[1].y;
+
 }
 
 /**
