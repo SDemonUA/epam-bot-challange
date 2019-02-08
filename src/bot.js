@@ -29,31 +29,30 @@ var CONSUMABLE_ELEMENTS = [
     ELEMENT.APPLE, ELEMENT.GOLD, ELEMENT.FURY_PILL//, ELEMENT.FLYING_PILL //, ELEMENT.STONE
 ];
 
-const MAX_SEARCH = 5;
 const STONE_EATER_MIN_SIZE = 5;
 const RATINGS = {
     [ELEMENT.NONE]: 0,
     [ELEMENT.FLYING_PILL]: 0,
-    [ELEMENT.FURY_PILL]: 15,
-    [ELEMENT.STONE]: 5,
-    [ELEMENT.APPLE]: 5,
-    [ELEMENT.GOLD]: 5,
+    [ELEMENT.FURY_PILL]: 5,
+    [ELEMENT.STONE]: 1,
+    [ELEMENT.APPLE]: 1,
+    [ELEMENT.GOLD]: 1,
 
-    [ELEMENT.ENEMY_HEAD_DEAD]: 20,
-    [ELEMENT.ENEMY_HEAD_DOWN]: 20,
-    [ELEMENT.ENEMY_HEAD_EVIL]: 15,
-    [ELEMENT.ENEMY_HEAD_FLY]: 20,
-    [ELEMENT.ENEMY_HEAD_LEFT]: 20,
-    [ELEMENT.ENEMY_HEAD_RIGHT]: 20,
-    [ELEMENT.ENEMY_HEAD_SLEEP]: 20,
-    [ELEMENT.ENEMY_HEAD_UP]: 20,
+    [ELEMENT.ENEMY_HEAD_DEAD]: 15,
+    [ELEMENT.ENEMY_HEAD_DOWN]: 15,
+    [ELEMENT.ENEMY_HEAD_EVIL]: 10,
+    [ELEMENT.ENEMY_HEAD_FLY]: 15,
+    [ELEMENT.ENEMY_HEAD_LEFT]: 15,
+    [ELEMENT.ENEMY_HEAD_RIGHT]: 15,
+    [ELEMENT.ENEMY_HEAD_SLEEP]: 15,
+    [ELEMENT.ENEMY_HEAD_UP]: 15,
 
-    [ELEMENT.ENEMY_BODY_HORIZONTAL]: 18,
-    [ELEMENT.ENEMY_BODY_LEFT_DOWN]: 18,
-    [ELEMENT.ENEMY_BODY_LEFT_UP]: 18,
-    [ELEMENT.ENEMY_BODY_RIGHT_DOWN]: 18,
-    [ELEMENT.ENEMY_BODY_RIGHT_UP]: 18,
-    [ELEMENT.ENEMY_BODY_VERTICAL]: 18,
+    [ELEMENT.ENEMY_BODY_HORIZONTAL]: 14,
+    [ELEMENT.ENEMY_BODY_LEFT_DOWN]: 14,
+    [ELEMENT.ENEMY_BODY_LEFT_UP]: 14,
+    [ELEMENT.ENEMY_BODY_RIGHT_DOWN]: 14,
+    [ELEMENT.ENEMY_BODY_RIGHT_UP]: 14,
+    [ELEMENT.ENEMY_BODY_VERTICAL]: 14,
 
     // [ELEMENT.ENEMY_TAIL_END_DOWN]: 10,
     // [ELEMENT.ENEMY_TAIL_END_LEFT]: 10,
@@ -71,7 +70,12 @@ function getSafeElements(board) {
         ELEMENT.NONE, ELEMENT.FLYING_PILL, ELEMENT.FURY_PILL, ELEMENT.APPLE, ELEMENT.GOLD,
         ELEMENT.TAIL_END_DOWN, ELEMENT.TAIL_END_LEFT, ELEMENT.TAIL_END_RIGHT, ELEMENT.TAIL_END_UP,
         ELEMENT.TAIL_INACTIVE, ELEMENT.ENEMY_TAIL_END_DOWN, ELEMENT.ENEMY_TAIL_END_LEFT, ELEMENT.ENEMY_TAIL_END_RIGHT,
-        ELEMENT.ENEMY_TAIL_END_UP, ELEMENT.ENEMY_TAIL_INACTIVE
+        ELEMENT.ENEMY_TAIL_END_UP, ELEMENT.ENEMY_TAIL_INACTIVE,
+
+        ELEMENT.BODY_HORIZONTAL, ELEMENT.BODY_VERTICAL, ELEMENT.BODY_LEFT_DOWN,
+        ELEMENT.BODY_LEFT_UP, ELEMENT.BODY_RIGHT_DOWN, ELEMENT.BODY_RIGHT_UP,
+
+        ELEMENT.ENEMY_HEAD_DEAD,
     ];
 
     if (inFury(board) || inFly(board)){
@@ -166,6 +170,7 @@ export function getNextSnakeMove(board, logger) {
 
     enemySnakes = findSnakes(board);
 
+    const originalBoard = board;
     board = markDangerZone(board, enemySnakes);
     console.assert(board.length == initialBoardSize, 'mark danger zone');
 
@@ -179,7 +184,7 @@ export function getNextSnakeMove(board, logger) {
     const consumables = getConsumables(board, stonesEatable);
 
     // Add vulnarable snakes as targets
-    enemySnakes.filter(snake => {
+    const vulnarableSnakes = enemySnakes.filter(snake => {
         if (snake.fury != !inFury(board) && snake.fury) return false;
         if (snake.fly != inFly(board)) return false;
         if (snakeSize - snake.points.length < 2 && !inFury(board)) return false;
@@ -188,7 +193,32 @@ export function getNextSnakeMove(board, logger) {
         if (getDistance(snake.head, headPosition) > 8) return false;
 
         return true;
-    }).forEach(snake => {
+    });
+
+    if (vulnarableSnakes.length == enemySnakes.length) {
+        const onTheWayToPrey = new Set();
+        vulnarableSnakes.forEach(snake => {
+            consumables.filter(consumable => {
+                if (getDistance(consumable.point, headPosition) > getDistance(consumable.point, snake.head)) {
+                    return false;
+                }
+
+                if (getDistance(consumable.point, snake.head) > getDistance(headPosition, snake.head) + 5) {
+                    return false;
+                }
+
+                return true;
+            }).forEach( c => onTheWayToPrey.add(c) );
+        });
+
+        for (let i = 0; i < consumables.length; i++) {
+            if (onTheWayToPrey.has(consumables[i])) continue;
+
+            consumables.splice(i--, 1);
+        }
+    }
+
+    vulnarableSnakes.forEach(snake => {
         if (!inFury(board)) {
             consumables.push({ point: snake.head, element: snake.headElement });
             getSorroundPoints(snake.head, getBoardSize(board))
@@ -203,10 +233,6 @@ export function getNextSnakeMove(board, logger) {
         }
     });
 
-
-
-    let current_path;
-
     const paths = findPaths(board, headPosition, consumables.map(cons => cons.point));
 
     // Sort by distance and rate - higher rate will give priority over distance
@@ -218,50 +244,43 @@ export function getNextSnakeMove(board, logger) {
             .map(c => rateElement(c.element))
             .reduce((total, cur) => total + cur, 0) / 2;
 
-        return p1.path.length - p2.path.length + rateElement(p2.target) - rateElement(p1.target) + densityRate2 - densityRate1;
+        let distanceRate1 = p1.path.length - rateElement(p1.target) - densityRate1;
+        let distanceRate2 = p2.path.length - rateElement(p2.target) - densityRate2;
+
+        return distanceRate1 - distanceRate2;
+        // return p1.path.length - p2.path.length + rateElement(p2.target) - rateElement(p1.target) + densityRate2 - densityRate1;
     });
 
-    if (!paths.length) {
-        logger('No path to was found');
+    let command = '';
+    if (paths.length) {
+        const path = paths[0].path;
+        const point = path[path.length - 1];
+        const element = getElementByXY(board, point);
+
+        command = getCommandByPoints(headPosition, path[0]);
+        logger('Winned path ' + element + ' ' + JSON.stringify(point) + ' ' + path.map( p => `[${p.x},${p.y}]`).join(', ') );
     }
     else {
-        const point = paths[0].path[paths[0].path.length - 1];
-        const element = getElementByXY(board, point);
-        current_path = {
-            path: paths[0].path,
-            rating: rateElement(element),
-            element: element,
-            point: point
-        }
-    }
-
-    let command = '';
-    if (current_path) {
-        const point = current_path.path[0]
-        command = getCommandByPoints(headPosition, point);
-        logger('Winned path ' + current_path.element + ' ' + JSON.stringify(current_path.point) + ' ' + JSON.stringify(current_path.path));
+        logger('No path to was found');
     }
 
     if (!command) {
-        logger('Warning: no desicition for move was made.\n'+ JSON.stringify(current_path)+'\n'+ JSON.stringify(consumables));
-
-        const sorround = getSorround(board, headPosition); // (LEFT, UP, RIGHT, DOWN)
-        logger('Sorround: ' + JSON.stringify(sorround));
+        logger('Warning: no desicition for move was made.\n'+ JSON.stringify(consumables));
 
         const safeElements = getSafeElements(board);
-        const raitings = sorround
-            .map((el, i) => {
-                var indexToCommand = ['LEFT', 'UP', 'RIGHT', 'DOWN'];
-                if (isDeadEnd(board, getPointFromCommand(indexToCommand[i], headPosition))) {
-                    return null;
-                }
-                return el;
-            })
-            .map(element => safeElements.indexOf(element) != -1 ? element : ELEMENT.WALL)
-            .map(rateElement);
-        logger('Raitings:' + JSON.stringify(raitings));
+        let availablePoints = getSorroundPoints(headPosition, getBoardSize(board))
+            .filter(p => safeElements.indexOf(getElementByXY(board, p)) != -1)
+            .filter(p => !isDeadEnd(board, p, safeElements));
 
-        command = getCommandByRaitings(raitings);
+        if (!availablePoints.length) {
+            availablePoints = getSorroundPoints(headPosition, getBoardSize(originalBoard))
+                .filter(p => safeElements.indexOf(getElementByXY(originalBoard, p)) != -1)
+                .filter(p => !isDeadEnd(originalBoard, p, safeElements));
+        }
+
+        if (availablePoints.length) {
+            command = getCommandByPoints(headPosition, availablePoints[0]);
+        }
     }
 
     command = correctBackFlip(board, command);
@@ -272,7 +291,7 @@ export function getNextSnakeMove(board, logger) {
 
     prevCommand = command;
 
-    if (stones && furyTicks >= 1 && !flyTicks) {
+    if (stones && furyTicks >= 1 && !flyTicks && snakeSize < 5) {
         command += ',' + COMMANDS.ACT;
         stones--;
     }
@@ -309,11 +328,18 @@ function canEatStone(board) {
  *
  * @param {String} board
  * @param {{x:number, y:number}} point
+ * @param {String[]} [safeElements]
  * @returns {boolean}
  */
-function isDeadEnd(board, point) {
+function isDeadEnd(board, point, safeElements) {
+    if (!safeElements) {
+        return getSorround(board, point).filter(element => {
+            return element === ELEMENT.WALL || element === ELEMENT.START_FLOOR;
+        }).length >= 2;
+    }
+
     return getSorround(board, point).filter(element => {
-        return element === ELEMENT.WALL || element === ELEMENT.START_FLOOR;
+        return safeElements.indexOf(element) == -1;
     }).length >= 2;
 }
 
