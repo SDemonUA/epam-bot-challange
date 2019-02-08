@@ -187,28 +187,29 @@ export function getNextSnakeMove(board, logger) {
     const vulnarableSnakes = enemySnakes.filter(snake => {
         if (snake.fury != !inFury(board) && snake.fury) return false;
         if (snake.fly != inFly(board)) return false;
-        if (snakeSize - snake.points.length < 2 && !inFury(board)) return false;
+        if (snakeSize - snake.points.length < 2 && furyTicks < getDistance(headPosition, snake.head)) return false;//!inFury(board)
 
         logger('Eatable snake on distance: ' + getDistance(snake.head, headPosition) + ' , head position: ' + JSON.stringify(snake.head));
-        if (getDistance(snake.head, headPosition) > 8) return false;
+        // if (getDistance(snake.head, headPosition) > 8) return false;
 
         return true;
     });
 
-    if (vulnarableSnakes.length == enemySnakes.length) {
+    //  Make snake more focused on prey and not be distracted by goods on other way
+    if (vulnarableSnakes.length && vulnarableSnakes.length >= enemySnakes.length - 1) {
         const onTheWayToPrey = new Set();
         vulnarableSnakes.forEach(snake => {
-            consumables.filter(consumable => {
-                if (getDistance(consumable.point, headPosition) > getDistance(consumable.point, snake.head)) {
-                    return false;
+            consumables.forEach(consumable => {
+                // if (getDistance(consumable.point, headPosition) > getDistance(consumable.point, snake.head)) {
+                //     return;
+                // }
+
+                if (getDistance(consumable.point, snake.head) > getDistance(headPosition, snake.head) + 3) {
+                    return;
                 }
 
-                if (getDistance(consumable.point, snake.head) > getDistance(headPosition, snake.head) + 5) {
-                    return false;
-                }
-
-                return true;
-            }).forEach( c => onTheWayToPrey.add(c) );
+                onTheWayToPrey.add(consumable);
+            });
         });
 
         for (let i = 0; i < consumables.length; i++) {
@@ -219,6 +220,7 @@ export function getNextSnakeMove(board, logger) {
     }
 
     vulnarableSnakes.forEach(snake => {
+        console.log('Prey', snake);
         if (!inFury(board)) {
             consumables.push({ point: snake.head, element: snake.headElement });
             getSorroundPoints(snake.head, getBoardSize(board))
