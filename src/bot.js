@@ -113,12 +113,14 @@ let stones = 0;
 let furyTicks = 0;
 let flyTicks = 0;
 let enemySnakes = null;
+let prevCommand = '';
 
 function resetState() {
     stones = 0;
     furyTicks = 0;
     flyTicks = 0;
     enemySnakes = null;
+    prevCommand = '';
 }
 
 let initialBoardSize;
@@ -151,6 +153,9 @@ export function getNextSnakeMove(board, logger) {
     enemySnakes = findSnakes(board);
     board = markDangerZone(board, enemySnakes);
     console.assert(board.length == initialBoardSize, 'mark danger zone');
+
+    board = denieBackFlip(board, prevCommand);
+    console.assert(board.length == initialBoardSize, 'after backflip denie');
 
     logger(`Snakes ${enemySnakes.length}| ${enemySnakes.map(s => JSON.stringify(s.head) + ' size ' + s.points.length).join(', ')}`);
 
@@ -284,14 +289,16 @@ export function getNextSnakeMove(board, logger) {
 
     const nextPoint = getPointFromCommand(command, headPosition);
 
+    prevCommand = command
+
     if (stones && furyTicks >= 1 && !flyTicks) {
-        const myself = getSorroundPoints(headPosition, getBoardSize(board)).filter(p => isSelf(board, p))[0];
-        if (myself) {
-            command = correctBackFlip(board, getCommandByPoints(headPosition, myself));
-        }
-        if (getSelfSnakeSize(board) == 2) {
-            command += ',' + COMMANDS.ACT; stones++;
-        }
+        // const myself = getSorroundPoints(headPosition, getBoardSize(board)).filter(p => isSelf(board, p))[0];
+        // if (myself) {
+        //     command = correctBackFlip(board, getCommandByPoints(headPosition, myself));
+        // }
+        // if (getSelfSnakeSize(board) == 2) {
+            command += ',' + COMMANDS.ACT;
+        // }
         stones--;
     }
 
@@ -597,6 +604,30 @@ function markDangerZone(board, enemySnakes) {
     });
 
     return board;
+}
+
+/**
+ *
+ * @param {String} board
+ * @param {String} prevCommand
+ * @returns {String}
+ */
+function denieBackFlip(board, prevCommand) {
+    if (!prevCommand) return board;
+    const opositeCommand = {
+        [COMMANDS.LEFT]: COMMANDS.RIGHT,
+        [COMMANDS.RIGHT]: COMMANDS.LEFT,
+        [COMMANDS.UP]: COMMANDS.DOWN,
+        [COMMANDS.DOWN]: COMMANDS.UP
+    }[prevCommand];
+
+    const headPosition = getHeadPosition(board);
+
+    if (!headPosition) return board;
+
+    const point = getPointFromCommand(opositeCommand, headPosition);
+    const possition = point.x + point.y * getBoardSize(board);
+    return board.substring(0, possition) + ELEMENT.WALL + board.substring(possition + 1);
 }
 
 /**
