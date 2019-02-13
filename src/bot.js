@@ -33,10 +33,10 @@ const STONE_EATER_MIN_SIZE = 5;
 const RATINGS = {
     [ELEMENT.NONE]: 0,
     [ELEMENT.FLYING_PILL]: 0,
-    [ELEMENT.FURY_PILL]: 5,
+    [ELEMENT.FURY_PILL]: 6,
     [ELEMENT.STONE]: 1,
     [ELEMENT.APPLE]: 1,
-    [ELEMENT.GOLD]: 3,
+    [ELEMENT.GOLD]: 4,
 
     [ELEMENT.ENEMY_HEAD_DEAD]: 15,
     [ELEMENT.ENEMY_HEAD_DOWN]: 15,
@@ -174,7 +174,6 @@ export function getNextSnakeMove(board, logger) {
 
     const originalBoard = board;
     board = markDangerZone(board, enemySnakes);
-    console.assert(board.length == initialBoardSize, 'mark danger zone');
 
     board = denieBackFlip(board, prevCommand);
     console.assert(board.length == initialBoardSize, 'after backflip denie');
@@ -192,7 +191,7 @@ export function getNextSnakeMove(board, logger) {
         if (snakeSize - snake.points.length < 2 && furyTicks < getDistance(headPosition, snake.head)) return false;//!inFury(board)
 
         logger('Eatable snake on distance: ' + getDistance(snake.head, headPosition) + ' , head position: ' + JSON.stringify(snake.head));
-        // if (getDistance(snake.head, headPosition) > 8) return false;
+        if (getDistance(snake.head, headPosition) > 15) return false;
 
         return true;
     });
@@ -222,7 +221,6 @@ export function getNextSnakeMove(board, logger) {
     }
 
     vulnarableSnakes.forEach(snake => {
-        console.log('Prey', snake);
         if (!inFury(board)) {
             consumables.push({ point: snake.head, element: snake.headElement });
             getSorroundPoints(snake.head, getBoardSize(board))
@@ -237,22 +235,37 @@ export function getNextSnakeMove(board, logger) {
         }
     });
 
+    const commandToBlock = getCommandToBlock(board, enemySnakes);
+    if (commandToBlock) {
+        const pointToBlock = getPointFromCommand(commandToBlock, headPosition);
+        if (isWalkable(board, pointToBlock, snakeSize, 1) && !isDeadEnd(board, pointToBlock, getSafeElements(board))) {
+            logger('Trying to block!');
+            return commandToBlock;
+        }
+    }
+
+
     const paths = findPaths(board, headPosition, consumables.map(cons => cons.point));
 
     // Sort by distance and rate - higher rate will give priority over distance
     paths.sort((p1, p2) => {
-        const densityRate1 = consumables.filter(c => getDistance(c.point, p1.path[p1.path.length - 1]) <= 5)
-            .map(c => rateElement(c.element))
-            .reduce((total, cur) => total + cur, 0) / 2;
-        const densityRate2 = consumables.filter(c => getDistance(c.point, p2.path[p2.path.length - 1]) <= 5)
-            .map(c => rateElement(c.element))
-            .reduce((total, cur) => total + cur, 0) / 2;
+        // const pointOnTheWay1 = p1.path.slice(0, -1).map(p => rateElement(getElementByXY(board, p))).reduce((total, v) => total + v, 0) / 3;
+        // const pointOnTheWay2 = p2.path.slice(0, -1).map(p => rateElement(getElementByXY(board, p))).reduce((total, v) => total + v, 0) / 3;
 
-        let distanceRate1 = p1.path.length - rateElement(p1.target) - densityRate1;
-        let distanceRate2 = p2.path.length - rateElement(p2.target) - densityRate2;
+        const densityRate1 = consumables.filter(c => getDistance(c.point, p1.path[p1.path.length - 1]) <= 5)
+            .filter( c => !isEnemy(c.element) )
+            .map(c => rateElement(c.element))
+            .reduce((total, cur) => total + cur, 0) / 5;
+        const densityRate2 = consumables.filter(c => getDistance(c.point, p2.path[p2.path.length - 1]) <= 5)
+            .filter( c => !isEnemy(c.element) )
+            .map(c => rateElement(c.element))
+            .reduce((total, cur) => total + cur, 0) / 5;
+
+        let distanceRate1 = p1.path.length - rateElement(p1.target) - densityRate1;// - pointOnTheWay1;
+        let distanceRate2 = p2.path.length - rateElement(p2.target) - densityRate2;// - pointOnTheWay2;
 
         return distanceRate1 - distanceRate2;
-        // return p1.path.length - p2.path.length + rateElement(p2.target) - rateElement(p1.target) + densityRate2 - densityRate1;
+        // return  .path.length - p2.path.length + rateElement(p2.target) - rateElement(p1.target) + densityRate2 - densityRate1;
     });
 
     let command = '';
@@ -284,6 +297,10 @@ export function getNextSnakeMove(board, logger) {
 
         if (availablePoints.length) {
             command = getCommandByPoints(headPosition, availablePoints[0]);
+        }
+        else {
+            logger('No way to move - suicide');
+            return COMMANDS.SUICIDE;
         }
     }
 
@@ -465,7 +482,7 @@ function getConsumables(board, canEatStones) {
         else if (element === ELEMENT.STONE && canEatStones && !flyTicks) {
 
             // Avoid targeting stones if your snake become smaller than biggest enemy snake
-            if (/* tick > 200 &&  */!furyTicks && snakeSize < enemySnakes.reduce(function(max, snake) { return Math.max(max, snake.points.length) }, 0) + 3) {
+            if (tick > 100 && !furyTicks && snakeSize < enemySnakes.reduce(function(max, snake) { return Math.max(max, snake.points.length) }, 0) + 3) {
                 continue;
             }
 
@@ -621,6 +638,54 @@ function markDangerZone(board, enemySnakes) {
     return board;
 }
 
+function up(point) {
+    return { y: point.y - 1, x: point.x }
+}
+function down(point) {
+    return { y: point.y + 1, x: point.x }
+}
+function left(point) {
+    return { y: point.y, x: point.x - 1 }
+}
+function rigth(point) {
+    return { y: point.y, x: point.x + 1 }
+}
+
+function isWall(board, point){
+    return [
+        ELEMENT.WALL, ELEMENT.START_FLOOR
+    ].indexOf(getElementByXY(board, point)) != -1;
+}
+
+/**
+ *
+ * @param {String} board
+ * @param {Snake[]} snakes
+ */
+function getCommandToBlock(board, snakes) {
+    return snakes.map(snake => {
+        if (snake.fury || snake.fly) {
+            return;
+        }
+
+        if (isSelf(board, up(snake.head)) && isWall(board, down(snake.head))) {
+            return COMMANDS.DOWN;
+        }
+
+        if (isSelf(board, down(snake.head)) && isWall(board, up(snake.head))) {
+            return COMMANDS.UP;
+        }
+
+        if (isSelf(board, left(snake.head)) && isWall(board, rigth(snake.head))) {
+            return COMMANDS.RIGHT;
+        }
+
+        if (isSelf(board, rigth(snake.head)) && isWall(board, left(snake.head))) {
+            return COMMANDS.LEFT;
+        }
+    }).filter(cmd => cmd)[0];
+}
+
 /**
  *
  * @param {String} board
@@ -715,8 +780,23 @@ function findPaths(board, start, ends) {
             });
     }
 
-    const paths = [];
 
+    // const pathVariants = (path) => {
+        //     const variants = nextPathVariants(path[path.length - 1], valueMap);
+    //     if (variants.length) {
+        //         return variants
+    //             .map(p => path.concat([p]))
+    //             .map(pathVariants)
+    //             .reduce((paths, subPaths) => paths.concat(subPaths), []);
+    //     }
+    //     return [path];
+    // };
+
+    // const paths = [].concat.apply([], ends.map(end => pathVariants([end])
+    //     .map(path => ({ path: path.reverse(), target: getElementByXY(board, end) })
+    // )));
+
+    const paths = [];
     for (let i = 0; i < ends.length; i++) {
         const end = ends[i];
 
@@ -725,25 +805,32 @@ function findPaths(board, start, ends) {
         }
 
         const path = [end];
+        for (let i = 0; i < path.length; i++) {
+            const point = path[i];
+            const variants = nextPathVariants(point, valueMap);
+            variants.sort((v1, v2) => {
+                return rateElement(getElementByXY(board, v2)) - rateElement(getElementByXY(board, v1));
+            });
 
-        for (let j = 0; j < path.length; j++) {
-            const point = path[j];
-            const surroundPoints = [
-                { x: point.x, y: point.y - 1 },
-                { x: point.x, y: point.y + 1 },
-                { x: point.x - 1, y: point.y },
-                { x: point.x + 1, y: point.y }
-            ].filter(p => valueMap[p.x][p.y] < valueMap[point.x][point.y] && valueMap[p.x][p.y])
-                .sort((p1, p2) => valueMap[p1.x][p1.y] - valueMap[p2.x][p2.y]);
-
-            if (surroundPoints.length)
-                path.push(surroundPoints[0]);
+            if (variants.length) {
+                path.push(variants[0]);
+            }
         }
 
         path.reverse();
-        paths.push({path, target:getElementByXY(board, end)});
+        paths.push({ path, target: getElementByXY(board, end) });
     }
+
     return paths;
+}
+
+function nextPathVariants(point, valueMap) {
+    return [
+        { x: point.x, y: point.y - 1 },
+        { x: point.x, y: point.y + 1 },
+        { x: point.x - 1, y: point.y },
+        { x: point.x + 1, y: point.y }
+    ].filter(p => valueMap[p.x][p.y] && valueMap[p.x][p.y] == valueMap[point.x][point.y]-1)
 }
 
 /**
