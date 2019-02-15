@@ -87,6 +87,6 @@ function printLog(text) {
     if (addToEnd.checked) {
         textarea.value = textarea.value + "\n" + text;
     } else {
-        textarea.value = text + "\n" + textarea.value.substring(0, 15000-text.length);
+        textarea.value = text + "\n" + textarea.value.substring(0, 150000-text.length);
     }
 }

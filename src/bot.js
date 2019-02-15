@@ -33,26 +33,26 @@ const STONE_EATER_MIN_SIZE = 5;
 const RATINGS = {
     [ELEMENT.NONE]: 0,
     [ELEMENT.FLYING_PILL]: 0,
-    [ELEMENT.FURY_PILL]: 6,
+    [ELEMENT.FURY_PILL]: 10,
     [ELEMENT.STONE]: 1,
     [ELEMENT.APPLE]: 1,
     [ELEMENT.GOLD]: 4,
 
-    [ELEMENT.ENEMY_HEAD_DEAD]: 15,
-    [ELEMENT.ENEMY_HEAD_DOWN]: 15,
+    [ELEMENT.ENEMY_HEAD_DEAD]: 20,
+    [ELEMENT.ENEMY_HEAD_DOWN]: 20,
     [ELEMENT.ENEMY_HEAD_EVIL]: 10,
-    [ELEMENT.ENEMY_HEAD_FLY]: 15,
-    [ELEMENT.ENEMY_HEAD_LEFT]: 15,
-    [ELEMENT.ENEMY_HEAD_RIGHT]: 15,
-    [ELEMENT.ENEMY_HEAD_SLEEP]: 15,
-    [ELEMENT.ENEMY_HEAD_UP]: 15,
+    [ELEMENT.ENEMY_HEAD_FLY]: 20,
+    [ELEMENT.ENEMY_HEAD_LEFT]: 20,
+    [ELEMENT.ENEMY_HEAD_RIGHT]: 20,
+    [ELEMENT.ENEMY_HEAD_SLEEP]: 20,
+    [ELEMENT.ENEMY_HEAD_UP]: 20,
 
-    [ELEMENT.ENEMY_BODY_HORIZONTAL]: 14,
-    [ELEMENT.ENEMY_BODY_LEFT_DOWN]: 14,
-    [ELEMENT.ENEMY_BODY_LEFT_UP]: 14,
-    [ELEMENT.ENEMY_BODY_RIGHT_DOWN]: 14,
-    [ELEMENT.ENEMY_BODY_RIGHT_UP]: 14,
-    [ELEMENT.ENEMY_BODY_VERTICAL]: 14,
+    [ELEMENT.ENEMY_BODY_HORIZONTAL]: 19,
+    [ELEMENT.ENEMY_BODY_LEFT_DOWN]: 19,
+    [ELEMENT.ENEMY_BODY_LEFT_UP]: 19,
+    [ELEMENT.ENEMY_BODY_RIGHT_DOWN]: 19,
+    [ELEMENT.ENEMY_BODY_RIGHT_UP]: 19,
+    [ELEMENT.ENEMY_BODY_VERTICAL]: 19,
 
     // [ELEMENT.ENEMY_TAIL_END_DOWN]: 10,
     // [ELEMENT.ENEMY_TAIL_END_LEFT]: 10,
@@ -80,7 +80,7 @@ function getSafeElements(board) {
         ELEMENT.ENEMY_HEAD_DEAD,
     ];
 
-    if (inFury(board) || inFly(board)){
+    if (furyTicks || flyTicks){
         safeElements.push(
             ELEMENT.ENEMY_HEAD_DEAD,
             ELEMENT.ENEMY_HEAD_DOWN,
@@ -186,8 +186,8 @@ export function getNextSnakeMove(board, logger) {
 
     // Add vulnarable snakes as targets
     const vulnarableSnakes = enemySnakes.filter(snake => {
-        if (snake.fury != !inFury(board) && snake.fury) return false;
-        if (snake.fly != inFly(board)) return false;
+        if (snake.fury != !furyTicks && snake.fury) return false;
+        if (snake.fly != flyTicks > 0) return false;
         if (snakeSize - snake.points.length < 2 && furyTicks < getDistance(headPosition, snake.head)) return false;//!inFury(board)
 
         logger('Eatable snake on distance: ' + getDistance(snake.head, headPosition) + ' , head position: ' + JSON.stringify(snake.head));
@@ -221,7 +221,7 @@ export function getNextSnakeMove(board, logger) {
     }
 
     vulnarableSnakes.forEach(snake => {
-        if (!inFury(board)) {
+        if (!furyTicks) {
             consumables.push({ point: snake.head, element: snake.headElement });
             getSorroundPoints(snake.head, getBoardSize(board))
                 .filter(p => !isEnemy(getElementByXY(board, p)))
@@ -342,7 +342,7 @@ export function getNextSnakeMove(board, logger) {
  * @returns {boolean}
  */
 function canEatStone(board) {
-    return inFury(board) || getSelfSnakeSize(board) >= STONE_EATER_MIN_SIZE;
+    return furyTicks > 0 || getSelfSnakeSize(board) >= STONE_EATER_MIN_SIZE;
 }
 
 /**
@@ -482,7 +482,12 @@ function getConsumables(board, canEatStones) {
         else if (element === ELEMENT.STONE && canEatStones && !flyTicks) {
 
             // Avoid targeting stones if your snake become smaller than biggest enemy snake
-            if (tick > 100 && !furyTicks && snakeSize < enemySnakes.reduce(function(max, snake) { return Math.max(max, snake.points.length) }, 0) + 3) {
+            // if (tick < 100) {
+            //     if (!furyTicks && snakeSize < enemySnakes.reduce(function(max, snake) { return Math.max(max, snake.points.length) }, 0)) {
+            //         continue;
+            //     }
+            // }
+            if (/* tick > 100 &&  */!furyTicks && snakeSize < enemySnakes.reduce(function(max, snake) { return Math.max(max, snake.points.length) }, 0) + 3) {
                 continue;
             }
 
@@ -522,6 +527,14 @@ function rateElement(element) {
 
     if (typeof rating == undefined) {
         return -1;
+    }
+
+    if (furyTicks) {
+        switch (element) {
+            case ELEMENT.STONE:
+                rating += 2;
+                break;
+        }
     }
 
     return rating;
