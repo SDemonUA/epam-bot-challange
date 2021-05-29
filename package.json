@@ -19,7 +19,7 @@
     "dependencies": {
         "babel-preset-es2015": "^6.24.1",
         "dotenv": "6.2.0",
-        "ws": "6.1.2"
+        "ws": "7.4.6"
     },
     "devDependencies": {
         "jest": "23.6.0",
