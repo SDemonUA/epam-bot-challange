@@ -45,7 +45,8 @@ module.exports = {
     },
 
     output: {
-        path: __dirname + '/dist/'
+        path: __dirname + '/dist/',
+        filename: '[name].js'
     },
 
     plugins: [
@@ -60,7 +61,14 @@ module.exports = {
     ],
 
     module: {
-          rules: [
+        rules: [
+            {
+                test: /\.js$/,
+                exclude: /node_modules/,
+                use: {
+                    loader: 'babel-loader'
+                }
+            }
         ]
     }
 };
